@@ -1,0 +1,1 @@
+# The calibrator read the semantic kernel objects, read or generate variants based on user's request, evaluate and suggest the best variant, and help incorporate the best variant into your project code.
