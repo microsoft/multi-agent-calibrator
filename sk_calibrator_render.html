@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>JSON Tree Visualization from API with D3.js</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      .node circle {
+        fill: #fff;
+        stroke: steelblue;
+        stroke-width: 3px;
+      }
+      .node text {
+        font: 12px sans-serif;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .link {
+        fill: none;
+        stroke: #ccc;
+        stroke-width: 2px;
+      }
+      #save-variants, #run-experiment {
+        margin: 20px;
+        padding: 10px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Buttons -->
+    <button id="save-variants">Save Changes</button>
+    <button id="run-experiment">Run Experiment</button>
+
+    <div id="tree-container"></div>
+
+    <script>
+      let changes = [];
+
+      // Helper function to build the full path correctly.
+      // If the new key starts with '[', it appends directly; otherwise, it prepends a dot.
+      function buildPath(parentPath, key) {
+        if (!parentPath) return key;
+        if (key.startsWith("[")) {
+          return parentPath + key;
+        } else {
+          return parentPath + "." + key;
+        }
+      }
+
+      // Recursively converts JSON to a tree structure and builds a fullPath for each node.
+      function jsonToTree(key, value, parentPath) {
+          let currentPath = buildPath(parentPath, key);
+          let node = {};
+          node.name = key;
+          node.fullPath = currentPath;
+
+          if (typeof value === "object" && value !== null) {
+              if (Array.isArray(value)) {
+                  // For arrays, use bracket notation with indices.
+                  node.children = value.map((d, i) => jsonToTree("[" + i + "]", d, currentPath));
+              } else {
+                  // For objects, iterate over keys.
+                  node.children = Object.keys(value).map(k => jsonToTree(k, value[k], currentPath));
+              }
+          } else {
+              // Leaf node: include the value.
+              node.name = key + ": " + value;
+              node.value = value;
+          }
+          return node;
+      }
+
+      // Updates the displayed text for a node after its value is changed.
+      function updateNodeText(selection, newValue) {
+        let fullPath = selection.datum().data.fullPath;
+        let keyParts = fullPath.split(".");
+        let lastKey = keyParts[keyParts.length - 1];
+        selection.datum().data.value = newValue;
+        selection.text(lastKey + ": " + newValue);
+      }
+
+      // Fetch the JSON data and build the tree.
+      fetch("/get_tree")
+        .then(response => response.json())
+        .then(jsonData => {
+          // If the JSON has a top-level "agents" property, use it as the tree data.
+          let dataForTree = (jsonData && jsonData.agents) ? jsonData.agents : jsonData;
+          // Use "agents" as the root key so that the full paths start with "agents"
+          const treeData = jsonToTree("agents", dataForTree, "");
+
+          const margin = { top: 20, right: 120, bottom: 20, left: 120 },
+                width = 960 - margin.left - margin.right,
+                height = 800 - margin.top - margin.bottom;
+
+          const svg = d3.select("#tree-container")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+          const treemap = d3.tree().size([height, width]);
+          const rootNode = d3.hierarchy(treeData);
+          treemap(rootNode);
+
+          svg.selectAll(".link")
+            .data(rootNode.links())
+            .enter()
+            .append("path")
+            .attr("class", "link")
+            .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+          const node = svg.selectAll(".node")
+            .data(rootNode.descendants())
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.y},${d.x})`);
+
+          node.append("circle").attr("r", 5);
+
+          node.append("text")
+            .attr("dy", 3)
+            .attr("x", d => d.children ? -8 : 8)
+            .style("text-anchor", d => d.children ? "end" : "start")
+            .text(d => d.data.name)
+            .on("click", function(event, d) {
+              if (!d.data.children) {
+                let newValue = prompt("Enter new value for " + d.data.fullPath, d.data.value);
+                if (newValue !== null) {
+                  updateNodeText(d3.select(this), newValue);
+                  let existing = changes.find(change => change.key === d.data.fullPath);
+                  if (existing) {
+                    existing.value = newValue;
+                  } else {
+                    changes.push({ key: d.data.fullPath, value: newValue });
+                  }
+                  console.log("Cached changes:", changes);
+                }
+              }
+            });
+        })
+        .catch(error => console.error("Error fetching tree data:", error));
+
+      // Save changes by sending a POST request to /save_variant.
+      document.getElementById("save-variants").addEventListener("click", function() {
+        if (changes.length === 0) {
+          alert("No changes to save.");
+          return;
+        }
+        fetch("/save_variant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ changes: changes })
+        })
+        .then(response => {
+          if (!response.ok) throw new Error("Failed to save variant");
+          return response.json();
+        })
+        .then(result => {
+          alert("Changes saved successfully!");
+          changes = [];
+        })
+        .catch(error => {
+          console.error("Error saving variant:", error);
+          alert("Error saving changes.");
+        });
+      });
+
+      // Trigger the experiment by sending a POST request to /run_experiment.
+      document.getElementById("run-experiment").addEventListener("click", function() {
+        fetch("/run_experiment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        })
+        .then(response => {
+          if (!response.ok) throw new Error("Experiment failed to run");
+          return response.json();
+        })
+        .then(result => {
+          alert("Experiment run successfully!");
+          console.log("Experiment result:", result);
+        })
+        .catch(error => {
+          console.error("Error running experiment:", error);
+          alert("Error running experiment.");
+        });
+      });
+    </script>
+  </body>
+</html>
