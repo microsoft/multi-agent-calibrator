@@ -1,0 +1,3 @@
+# sk_calibrator_config.yaml
+azureopenai_endpoint: "https://YOUR_AOAI_RESOURCE_NAME.openai.azure.com/"
+azuresearch_endpoint: "https://YOUR_SERCH_RESOURCE_NAME.search.windows.net"
