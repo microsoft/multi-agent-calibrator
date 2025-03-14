@@ -1,5 +1,13 @@
-# Semantic Kernel Auto Calibrator
-Automatically Calibrate Semantic Kernel Project Code
+# Multi-Agent Auto Calibrator
+Automatically Calibrate Semantic Kernel Project Code. 
+
+This is a tool to work with popular Multi-Agent frameworks  to continuously improve Multi-Agent system with speed and quality
+
+The Multi-Agent calibrator could help,
+- Visualize the Multi-Agent structure, convey the logic to Developer and business stakeholder
+- Help to speed up the feedback addressing, by generating N variant ideas, and evaluate with ground truth with regression
+- Track the quality continuously with number
+
 
 # Local Development Setup 
 
