@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft. All rights reserved.
+
 from flask import Flask, jsonify, abort, render_template, request
 import json
 import os

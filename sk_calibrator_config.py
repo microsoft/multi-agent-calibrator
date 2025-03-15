@@ -1,4 +1,5 @@
-# sk_calibrator_config.py
+# Copyright (c) Microsoft. All rights reserved.
+
 import yaml
 import os
 

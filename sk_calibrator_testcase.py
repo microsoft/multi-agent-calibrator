@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft. All rights reserved.
+
 import json
 import os
 from semantic_kernel.contents.chat_message_content import ChatMessageContent

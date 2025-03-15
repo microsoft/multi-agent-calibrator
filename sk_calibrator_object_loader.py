@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft. All rights reserved.
+
 from semantic_kernel.agents import AgentGroupChat
 from sample_sk_orchestrator_multiagent import define_multi_agent
 
