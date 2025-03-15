@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>JSON Tree Visualization from API with D3.js</title>
+    <title>Radial JSON Tree Visualization with D3.js</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
       .node circle {
@@ -25,6 +25,27 @@
         padding: 10px;
         cursor: pointer;
       }
+      #edit-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+      #modal-content {
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+        width: 400px;
+      }
+      #edit-textarea {
+        width: 100%;
+        resize: none;
+      }
     </style>
   </head>
   <body>
@@ -33,12 +54,26 @@
     <button id="run-experiment">Run Experiment</button>
 
     <div id="tree-container"></div>
+    <div id="edit-modal" style="display: none;">
+      <div id="modal-content">
+        <h3>Edit Value</h3>
+        <textarea id="edit-textarea"></textarea>
+        <button id="save-button">Save</button>
+        <button id="cancel-button">Cancel</button>
+      </div>
+    </div>
 
     <script>
       let changes = [];
+      let currentSelection = null;
+      let currentData = null;
+
+      const modal = document.getElementById('edit-modal');
+      const textarea = document.getElementById('edit-textarea');
+      const saveButton = document.getElementById('save-button');
+      const cancelButton = document.getElementById('cancel-button');
 
       // Helper function to build the full path correctly.
-      // If the new key starts with '[', it appends directly; otherwise, it prepends a dot.
       function buildPath(parentPath, key) {
         if (!parentPath) return key;
         if (key.startsWith("[")) {
@@ -48,27 +83,32 @@
         }
       }
 
+      // Helper to truncate text to a maximum length (default 30 characters)
+      function truncateText(text, maxLength = 30) {
+        if (text.length > maxLength) {
+          return text.substring(0, maxLength - 3) + "...";
+        }
+        return text;
+      }
+
       // Recursively converts JSON to a tree structure and builds a fullPath for each node.
       function jsonToTree(key, value, parentPath) {
-          let currentPath = buildPath(parentPath, key);
-          let node = {};
-          node.name = key;
-          node.fullPath = currentPath;
+        let currentPath = buildPath(parentPath, key);
+        let node = {};
+        node.name = key;
+        node.fullPath = currentPath;
 
-          if (typeof value === "object" && value !== null) {
-              if (Array.isArray(value)) {
-                  // For arrays, use bracket notation with indices.
-                  node.children = value.map((d, i) => jsonToTree("[" + i + "]", d, currentPath));
-              } else {
-                  // For objects, iterate over keys.
-                  node.children = Object.keys(value).map(k => jsonToTree(k, value[k], currentPath));
-              }
+        if (typeof value === "object" && value !== null) {
+          if (Array.isArray(value)) {
+            node.children = value.map((d, i) => jsonToTree("[" + i + "]", d, currentPath));
           } else {
-              // Leaf node: include the value.
-              node.name = key + ": " + value;
-              node.value = value;
+            node.children = Object.keys(value).map(k => jsonToTree(k, value[k], currentPath));
           }
-          return node;
+        } else {
+          node.name = key + ": " + value;
+          node.value = value;
+        }
+        return node;
       }
 
       // Updates the displayed text for a node after its value is changed.
@@ -77,73 +117,113 @@
         let keyParts = fullPath.split(".");
         let lastKey = keyParts[keyParts.length - 1];
         selection.datum().data.value = newValue;
-        selection.text(lastKey + ": " + newValue);
+        let fullText = lastKey + ": " + newValue;
+        selection.text(truncateText(fullText));
       }
 
-      // Fetch the JSON data and build the tree.
+      // Function to set the rows of the textarea based on the number of lines
+      function setTextareaRows(textarea, text) {
+        const lines = text.split('\n').length;
+        const maxRows = 10;
+        const minRows = 1;
+        textarea.rows = Math.min(Math.max(lines, minRows), maxRows);
+      }
+
+      // Fetch the JSON data and build the radial tree.
       fetch("/get_tree")
         .then(response => response.json())
         .then(jsonData => {
-          // If the JSON has a top-level "agents" property, use it as the tree data.
           let dataForTree = (jsonData && jsonData.agents) ? jsonData.agents : jsonData;
-          // Use "agents" as the root key so that the full paths start with "agents"
           const treeData = jsonToTree("agents", dataForTree, "");
 
-          const margin = { top: 20, right: 120, bottom: 20, left: 120 },
-                width = 960 - margin.left - margin.right,
-                height = 800 - margin.top - margin.bottom;
+          const width = 960,
+                height = 800,
+                radius = Math.min(width, height) / 2 - 20;
 
           const svg = d3.select("#tree-container")
             .append("svg")
-            .attr("width", width + margin.left + margin.right)
-            .attr("height", height + margin.top + margin.bottom)
+            .attr("width", width)
+            .attr("height", height)
             .append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`);
+            .attr("transform", `translate(${width / 2},${height / 2})`);
 
-          const treemap = d3.tree().size([height, width]);
           const rootNode = d3.hierarchy(treeData);
-          treemap(rootNode);
 
-          svg.selectAll(".link")
+          const treeLayout = d3.tree()
+            .size([2 * Math.PI, radius]);
+          treeLayout(rootNode);
+
+          const linkGenerator = d3.linkRadial()
+            .angle(d => d.x)
+            .radius(d => d.y);
+
+          svg.selectAll("path.link")
             .data(rootNode.links())
             .enter()
             .append("path")
             .attr("class", "link")
-            .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+            .attr("d", linkGenerator);
 
-          const node = svg.selectAll(".node")
+          const node = svg.selectAll("g.node")
             .data(rootNode.descendants())
             .enter()
             .append("g")
             .attr("class", "node")
-            .attr("transform", d => `translate(${d.y},${d.x})`);
+            .attr("transform", d => `translate(${d.y * Math.cos(d.x - Math.PI / 2)}, ${d.y * Math.sin(d.x - Math.PI / 2)})`);
 
           node.append("circle").attr("r", 5);
 
           node.append("text")
-            .attr("dy", 3)
-            .attr("x", d => d.children ? -8 : 8)
-            .style("text-anchor", d => d.children ? "end" : "start")
-            .text(d => d.data.name)
+            .attr("dy", "0.31em")
+            .attr("x", d => (Math.cos(d.x - Math.PI / 2) < 0 ? -10 : 10))
+            .attr("text-anchor", d => (Math.cos(d.x - Math.PI / 2) < 0 ? "end" : "start"))
+            .text(d => truncateText(d.data.name))
             .on("click", function(event, d) {
               if (!d.data.children) {
-                let newValue = prompt("Enter new value for " + d.data.fullPath, d.data.value);
-                if (newValue !== null) {
-                  updateNodeText(d3.select(this), newValue);
-                  let existing = changes.find(change => change.key === d.data.fullPath);
-                  if (existing) {
-                    existing.value = newValue;
-                  } else {
-                    changes.push({ key: d.data.fullPath, value: newValue });
-                  }
-                  console.log("Cached changes:", changes);
-                }
+                currentSelection = d3.select(this);
+                currentData = d;
+                textarea.value = d.data.value;
+                setTextareaRows(textarea, d.data.value);
+                modal.style.display = 'flex';
+                textarea.focus();
               }
             });
         })
         .catch(error => console.error("Error fetching tree data:", error));
 
-      // Save changes by sending a POST request to /save_variant.
+      // Modal button handlers
+      saveButton.onclick = function() {
+        if (currentSelection && currentData) {
+          const newValue = textarea.value;
+          updateNodeText(currentSelection, newValue);
+          let existing = changes.find(change => change.key === currentData.data.fullPath);
+          if (existing) {
+            existing.value = newValue;
+          } else {
+            changes.push({ key: currentData.data.fullPath, value: newValue });
+          }
+          console.log("Cached changes:", changes);
+          modal.style.display = 'none';
+          currentSelection = null;
+          currentData = null;
+        }
+      };
+
+      cancelButton.onclick = function() {
+        modal.style.display = 'none';
+        currentSelection = null;
+        currentData = null;
+      };
+
+      modal.onclick = function(event) {
+        if (event.target === modal) {
+          modal.style.display = 'none';
+          currentSelection = null;
+          currentData = null;
+        }
+      };
+
+      // Save changes
       document.getElementById("save-variants").addEventListener("click", function() {
         if (changes.length === 0) {
           alert("No changes to save.");
@@ -168,7 +248,7 @@
         });
       });
 
-      // Trigger the experiment by sending a POST request to /run_experiment.
+      // Run experiment
       document.getElementById("run-experiment").addEventListener("click", function() {
         fetch("/run_experiment", {
           method: "POST",
