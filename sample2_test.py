@@ -36,7 +36,7 @@ group_chat_info = {
     "group_chat_instruction": "You are a calibrator component agent. Your job is to assist the user with calibration tasks."
 }
 agent_list = [
-    {"agent_name": "agent1", "agent_description": "", "agent_instruction": "", "service_id": ""},]
+    {"agent_name": "agent1", "agent_description": "TODO", "agent_instruction": " TODO:  User Input: {user_input}  Chat History: {chat_history_input}  {{{{$history}}}}", "service_id": "agent1_service_id"},]
 plugin_list = [
     {"plugin_class_name": "sample2_components.Scrum_Champ", "plugin_name": "Scrum_Champ"}]
 function_list = [{"function_class_name": "sample2_components.search", "description": "description of func1"},]

@@ -63,6 +63,15 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     agents = []
     # Agent1
     agent1_kernel = Kernel()
+    agent1_chat_completion_service = AzureChatCompletion(
+        service_id=agent_list[0]["service_id"],
+        deployment_name=azure_openai_model,
+        ad_token_provider = token_provider,
+        async_client=azure_oai_client,
+    )
+    agent1_kernel.add_service(agent1_chat_completion_service)
+    settings = agent1_kernel.get_prompt_execution_settings_from_service_id(service_id=agent_list[0]["service_id"])
+    settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
     # Create a new chat completion agent with the Azure OpenAI client
     chat_completion_agent = ChatCompletionAgent(
         kernel=agent1_kernel,
@@ -131,7 +140,8 @@ Chat History:
     # --- Define selection strategy for the group chat ---
     selection_function = KernelFunctionFromPrompt(
         function_name="selection_function",
-        prompt="""You are the multi-agent coordinator. Your task is to select exactly one agent for the next turn, based solely on the conversation history. Allowed agents are provided in the variable "agents". 
+        prompt="""You are the multi-agent coordinator. Your task is to select exactly one agent for the next turn, based solely on the conversation history. 
+            Allowed agents are provided in the variable "agents". 
             Rules:
             Output only the name of the selected agent. Chat History: {{$history}}
             Chat History:
