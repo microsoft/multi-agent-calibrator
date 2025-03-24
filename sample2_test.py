@@ -22,18 +22,18 @@ import time
 
 from sk_calibrator_component_assembler import AssembleAgentGroupChat
 
-from sample2_component_list import agent_list, plugin_list, function_list, group_chat_info, azure_openai_endpoint,azure_openai_model
+from sample2_component_list import agent_list, plugin_list, function_list, group_chat_info, agent_topology, azure_openai_endpoint,azure_openai_model
 
 # Import the configuration loader
 from sk_calibrator_config import load_config
 # Load endpoints from YAML configuration
 config = load_config("sample_sk_orchestrator_config.yaml")
 
-AssembleAgentGroupChat(group_chat_info, agent_list,plugin_list, function_list, azure_openai_endpoint = azure_openai_endpoint, azure_openai_model = azure_openai_model)
+AssembleAgentGroupChat(group_chat_info, agent_list,plugin_list, function_list, agent_topology, azure_openai_endpoint = azure_openai_endpoint, azure_openai_model = azure_openai_model)
 
 async def async_output(user_input: str, chat_history_input: ChatHistory, azureopenai_endpoint: str) -> str:
 
-    multi_chat = AssembleAgentGroupChat(group_chat_info, agent_list,plugin_list, function_list, azure_openai_endpoint = azureopenai_endpoint, azure_openai_model = "gpt-4o-mini-deploy")
+    multi_chat = AssembleAgentGroupChat(group_chat_info, agent_list,plugin_list, function_list, agent_topology, azure_openai_endpoint = azureopenai_endpoint, azure_openai_model = "gpt-4o-mini-deploy")
 
     delta = ["agent1"]
 
