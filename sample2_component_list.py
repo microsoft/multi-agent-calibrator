@@ -30,7 +30,8 @@ agent_list = [
     {"agent_name": "agent1", "agent_description": "TODO", "agent_instruction": " TODO:  User Input: {user_input}  Chat History: {chat_history_input}  {{{{$history}}}}", "service_id": "agent1_service_id"},]
 plugin_list = [
     {"plugin_class_name": "sample2_components.Scrum_Champ", "plugin_name": "Scrum_Champ"}]
-function_list = [{"function_class_name": "sample2_components.search", "description": "description of func1"},]
+function_list = [{"function_class_name": "sample2_components.search", "description": "description of func1"},
+                 {"function_class_name": "sample2_components.fetch_team_capacity", "description": "Fetch the team capacity of current sprint"},]
 
 
 agent_topology = {
@@ -43,6 +44,9 @@ agent_topology = {
                     "functions": [
                         {
                             "function_class_name": "sample2_components.search"
+                        },
+                        {
+                            "function_class_name": "sample2_components.fetch_team_capacity"
                         }
                     ]
                 }

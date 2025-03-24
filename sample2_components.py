@@ -7,3 +7,6 @@ class Scrum_Champ:
 
 def search(keywords: str):
     pass
+
+def fetch_team_capacity():
+    return "Team capacity is 30 story points."
