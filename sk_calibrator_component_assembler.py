@@ -101,18 +101,15 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     agent1_kernel.add_plugin(plugin1, plugin_name=plugin_name_1)
 
 
-
     # --- Define termination strategy for the group chat ---
     # Define a termination keyword
     TERMINATION_KEYWORD = "TERMINATE"
-    
+        
+    termination_function_prompt = group_chat_info["termination_function_prompt"]
     # Create a termination function that evaluates whether to end the conversation.
     termination_function = KernelFunctionFromPrompt(
         function_name="termination_function",
-        prompt="""You are a termination evaluator. Analyze the chat history and if the last agent response indicates that the task is complete, output the keyword 'TERMINATE'. Otherwise, output nothing.
-        Chat History:
-        {{$history}}
-"""
+        prompt=termination_function_prompt
     )
     
     # Create a separate kernel for termination and add an Azure OpenAI service for it.
@@ -138,18 +135,10 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     # --- End termination strategy definition ---
 
     # --- Define selection strategy for the group chat ---
+    selection_function_prompt = group_chat_info["selection_function_prompt"]
     selection_function = KernelFunctionFromPrompt(
         function_name="selection_function",
-        prompt="""You are the multi-agent coordinator. 
-            Your task is to select exactly one agent for the next turn, based solely on the conversation history. 
-            Select any one agent from the list of agents available i.e., 'agent1'.
-            Rules:
-            Output only the name of the selected agent. 
-            Chat History: 
-            {{$history}}
-            Chat History:
-            {{$history}}
-        """
+        prompt=selection_function_prompt
     )
     
     selection_kernel = Kernel()
