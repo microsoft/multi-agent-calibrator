@@ -31,3 +31,22 @@ agent_list = [
 plugin_list = [
     {"plugin_class_name": "sample2_components.Scrum_Champ", "plugin_name": "Scrum_Champ"}]
 function_list = [{"function_class_name": "sample2_components.search", "description": "description of func1"},]
+
+
+agent_topology = {
+    "agents": [
+        {
+            "agent_name": "agent1",
+            "plugins": [
+                {
+                    "plugin_name": "Scrum_Champ",
+                    "functions": [
+                        {
+                            "function_class_name": "sample2_components.search"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
