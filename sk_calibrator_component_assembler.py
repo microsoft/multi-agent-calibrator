@@ -110,8 +110,8 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     termination_function = KernelFunctionFromPrompt(
         function_name="termination_function",
         prompt="""You are a termination evaluator. Analyze the chat history and if the last agent response indicates that the task is complete, output the keyword 'TERMINATE'. Otherwise, output nothing.
-Chat History:
-{{$history}}
+        Chat History:
+        {{$history}}
 """
     )
     
@@ -140,10 +140,13 @@ Chat History:
     # --- Define selection strategy for the group chat ---
     selection_function = KernelFunctionFromPrompt(
         function_name="selection_function",
-        prompt="""You are the multi-agent coordinator. Your task is to select exactly one agent for the next turn, based solely on the conversation history. 
-            Allowed agents are provided in the variable "agents". 
+        prompt="""You are the multi-agent coordinator. 
+            Your task is to select exactly one agent for the next turn, based solely on the conversation history. 
+            Select any one agent from the list of agents available i.e., 'agent1'.
             Rules:
-            Output only the name of the selected agent. Chat History: {{$history}}
+            Output only the name of the selected agent. 
+            Chat History: 
+            {{$history}}
             Chat History:
             {{$history}}
         """

@@ -47,7 +47,7 @@ async def async_output(user_input: str, chat_history_input: ChatHistory, azureop
 
     multi_chat = AssembleAgentGroupChat(group_chat_info, agent_list,plugin_list, function_list, azure_openai_endpoint = azureopenai_endpoint, azure_openai_model = "gpt-4o-mini-deploy")
 
-    delta = ["ux_agent"]
+    delta = ["agent1"]
 
     if True:
         question_2 = user_input #messages[0]
