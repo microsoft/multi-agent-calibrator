@@ -48,6 +48,28 @@
         width: 100%;
         resize: none;
       }
+      /* New CSS for the Multi-Agent Components sidebar */
+      #multi-agent-components {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 220px;
+        background: #f9f9f9;
+        border: 1px solid #ccc;
+        padding: 10px;
+        overflow-y: auto;
+      }
+      #multi-agent-components h3 {
+        margin-top: 0;
+      }
+      #multi-agent-components ul {
+        list-style: none;
+        padding-left: 10px;
+      }
+      #multi-agent-components li {
+        margin: 4px 0;
+        cursor: default;
+      }
     </style>
   </head>
   <body>
@@ -56,6 +78,9 @@
     <button id="run-experiment">Run Experiment</button>
 
     <div id="tree-container"></div>
+    <!-- New container for Multi-Agent Components rendered as a sidebar -->
+    <div id="multi-agent-components"></div>
+
     <div id="edit-modal" style="display: none;">
       <div id="modal-content">
         <h3>Edit Value</h3>
@@ -270,5 +295,79 @@
         });
       });
     </script>
+
+    {% raw %}
+    <script>
+      // Multi-Agent Components data
+      const agent_list = [
+          {"agent_name": "agent1", "agent_description": "TODO", "agent_instruction": " TODO:  User Input: {user_input}  Chat History: {chat_history_input}  {{{{$history}}}}", "service_id": "agent1_service_id"}
+      ];
+      const plugin_list = [
+          {"plugin_class_name": "sample2_components.Scrum_Champ", "plugin_name": "Scrum_Champ"}
+      ];
+      const function_list = [
+          {"function_class_name": "sample2_components.search", "description": "description of func1"},
+          {"function_class_name": "sample2_components.fetch_team_capacity", "description": "Fetch the team capacity of current sprint"}
+      ];
+
+      // Function to render the multi-agent components into the sidebar container.
+      function renderMultiAgentComponents() {
+        const container = document.getElementById("multi-agent-components");
+        if (!container) return;
+
+        // Render Agents
+        let agentsDiv = document.createElement("div");
+        let agentsHeader = document.createElement("h3");
+        agentsHeader.textContent = "Agents";
+        agentsDiv.appendChild(agentsHeader);
+        let agentsList = document.createElement("ul");
+        agent_list.forEach(agent => {
+            let li = document.createElement("li");
+            li.textContent = agent.agent_name;
+            // Combine description and instruction as tooltip
+            li.title = agent.agent_description + (agent.agent_instruction ? " | " + agent.agent_instruction : "");
+            agentsList.appendChild(li);
+        });
+        agentsDiv.appendChild(agentsList);
+        container.appendChild(agentsDiv);
+
+        // Render Plugins
+        let pluginsDiv = document.createElement("div");
+        let pluginsHeader = document.createElement("h3");
+        pluginsHeader.textContent = "Plugins";
+        pluginsDiv.appendChild(pluginsHeader);
+        let pluginsList = document.createElement("ul");
+        plugin_list.forEach(plugin => {
+            let li = document.createElement("li");
+            li.textContent = plugin.plugin_name;
+            li.title = plugin.plugin_class_name;
+            pluginsList.appendChild(li);
+        });
+        pluginsDiv.appendChild(pluginsList);
+        container.appendChild(pluginsDiv);
+
+        // Render Functions
+        let functionsDiv = document.createElement("div");
+        let functionsHeader = document.createElement("h3");
+        functionsHeader.textContent = "Functions";
+        functionsDiv.appendChild(functionsHeader);
+        let functionsList = document.createElement("ul");
+        function_list.forEach(func => {
+            let li = document.createElement("li");
+            // Extract the function name from function_class_name (last part after dot)
+            let nameParts = func.function_class_name.split(".");
+            let name = nameParts[nameParts.length - 1];
+            li.textContent = name;
+            li.title = func.description;
+            functionsList.appendChild(li);
+        });
+        functionsDiv.appendChild(functionsList);
+        container.appendChild(functionsDiv);
+      }
+
+      // Render the components after DOM is loaded.
+      document.addEventListener("DOMContentLoaded", renderMultiAgentComponents);
+    </script>
+    {% endraw %}
   </body>
 </html>
