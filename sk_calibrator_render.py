@@ -10,17 +10,16 @@ config = load_config("sample_sk_orchestrator_config.yaml")
 azure_openai_endpoint = config.get("azureopenai_endpoint")
 azure_openai_model = config.get("azureopenai_model")
 
-from sample2_component_list import agent_list, plugin_list, function_list, group_chat_info, azure_openai_endpoint,azure_openai_model
+from sample2_component_list import agent_list, plugin_list, function_list, group_chat_info, agent_topology, azure_openai_endpoint, azure_openai_model
 
 # Load the multi-agent chat and convert it to JSON
 from sk_calibrator_object_loader import load_group_chat, decode_multi_agent, convert_multi_agent_to_json
 from sk_calibrator_component_assembler import AssembleAgentGroupChat
-#multi_chat = load_group_chat()
-multi_chat = AssembleAgentGroupChat(group_chat_info, agent_list,plugin_list, function_list, azure_openai_endpoint = azure_openai_endpoint, azure_openai_model = "gpt-4o-mini-deploy")
+# multi_chat = load_group_chat()
+multi_chat = AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint=azure_openai_endpoint, azure_openai_model="gpt-4o-mini-deploy")
 decode_multi_agent(multi_chat)
 multi_chat_json = convert_multi_agent_to_json(multi_chat)
 print(multi_chat_json)
-
 
 # Get the directory of the current file
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +29,11 @@ app = Flask(__name__, template_folder=current_dir)
 
 @app.route('/')
 def index():
-    return render_template('sk_calibrator_render.html')
+    # Pass the multi-agent component lists to the template.
+    return render_template('sk_calibrator_render.html',
+                           agent_list=agent_list,
+                           plugin_list=plugin_list,
+                           function_list=function_list)
 
 @app.route('/get_tree', methods=['GET'])
 def get_tree():
@@ -53,7 +56,7 @@ def save_variant():
     data = request.get_json()
     if not data or 'changes' not in data:
         abort(400, description="Invalid data. Expecting 'changes'.")
-    variant =  data["changes"]
+    variant = data["changes"]
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     try:
         with open(variant_file, 'a') as f:
@@ -62,9 +65,8 @@ def save_variant():
         abort(500, description=str(e))
     return jsonify({"status": "success"})
 
-@app.route('/run_experiment', methods=['POST']) 
+@app.route('/run_experiment', methods=['POST'])
 def run_experiment():
-
     from sk_calibrator_object_loader import evaluate_all_variants, modify_multi_agent
     import asyncio
 
@@ -84,7 +86,5 @@ def run_experiment():
 
     return jsonify({"result": f"Best variant: {best_variant_key}, Value: {best_variant_value}"})
 
-
 if __name__ == '__main__':
-
     app.run(debug=True)

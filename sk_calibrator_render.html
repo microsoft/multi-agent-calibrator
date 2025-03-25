@@ -1,5 +1,4 @@
 <!-- # Copyright (c) Microsoft. All rights reserved. -->
- 
 <!DOCTYPE html>
 <html>
   <head>
@@ -296,24 +295,19 @@
       });
     </script>
 
-    {% raw %}
+    <!-- Script to render multi-agent components using server-passed variables -->
     <script>
-      // Multi-Agent Components data
-      const agent_list = [
-          {"agent_name": "agent1", "agent_description": "TODO", "agent_instruction": " TODO:  User Input: {user_input}  Chat History: {chat_history_input}  {{{{$history}}}}", "service_id": "agent1_service_id"}
-      ];
-      const plugin_list = [
-          {"plugin_class_name": "sample2_components.Scrum_Champ", "plugin_name": "Scrum_Champ"}
-      ];
-      const function_list = [
-          {"function_class_name": "sample2_components.search", "description": "description of func1"},
-          {"function_class_name": "sample2_components.fetch_team_capacity", "description": "Fetch the team capacity of current sprint"}
-      ];
+      const agent_list = {{ agent_list | tojson }};
+      const plugin_list = {{ plugin_list | tojson }};
+      const function_list = {{ function_list | tojson }};
 
       // Function to render the multi-agent components into the sidebar container.
       function renderMultiAgentComponents() {
         const container = document.getElementById("multi-agent-components");
         if (!container) return;
+
+        // Clear the container
+        container.innerHTML = '';
 
         // Render Agents
         let agentsDiv = document.createElement("div");
@@ -354,7 +348,6 @@
         let functionsList = document.createElement("ul");
         function_list.forEach(func => {
             let li = document.createElement("li");
-            // Extract the function name from function_class_name (last part after dot)
             let nameParts = func.function_class_name.split(".");
             let name = nameParts[nameParts.length - 1];
             li.textContent = name;
@@ -368,6 +361,5 @@
       // Render the components after DOM is loaded.
       document.addEventListener("DOMContentLoaded", renderMultiAgentComponents);
     </script>
-    {% endraw %}
   </body>
 </html>
