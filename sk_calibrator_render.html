@@ -6,6 +6,7 @@
     <title>Radial JSON Tree Visualization with D3.js</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
+      /* Existing styles */
       .node circle {
         fill: #fff;
         stroke: steelblue;
@@ -47,7 +48,7 @@
         width: 100%;
         resize: none;
       }
-      /* New CSS for the Multi-Agent Components sidebar */
+      /* Existing sidebar styles */
       #multi-agent-components {
         position: absolute;
         top: 20px;
@@ -61,13 +62,26 @@
       #multi-agent-components h3 {
         margin-top: 0;
       }
-      #multi-agent-components ul {
-        list-style: none;
-        padding-left: 10px;
+      /* New CSS for interactive component cards */
+      .component-section {
+        margin-bottom: 16px;
       }
-      #multi-agent-components li {
+      .component-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .component-card {
+        border: 1px solid #ccc;
+        background: #fff;
         margin: 4px 0;
-        cursor: default;
+        padding: 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        user-select: none;
+      }
+      /* Optional: visual feedback for dragging */
+      .component-card.dragging {
+        opacity: 0.5;
       }
     </style>
   </head>
@@ -77,10 +91,10 @@
     <button id="run-experiment">Run Experiment</button>
 
     <div id="tree-container"></div>
-    <!-- New container for Multi-Agent Components rendered as a sidebar -->
+    <!-- Sidebar container for Multi-Agent Components -->
     <div id="multi-agent-components"></div>
 
-    <div id="edit-modal" style="display: none;">
+    <div id="edit-modal">
       <div id="modal-content">
         <h3>Edit Value</h3>
         <textarea id="edit-textarea"></textarea>
@@ -89,6 +103,7 @@
       </div>
     </div>
 
+    <!-- Main Script for tree rendering and modal handling -->
     <script>
       let changes = [];
       let currentSelection = null;
@@ -102,27 +117,18 @@
       // Helper function to build the full path correctly.
       function buildPath(parentPath, key) {
         if (!parentPath) return key;
-        if (key.startsWith("[")) {
-          return parentPath + key;
-        } else {
-          return parentPath + "." + key;
-        }
+        return key.startsWith("[") ? parentPath + key : parentPath + "." + key;
       }
 
       // Helper to truncate text to a maximum length (default 30 characters)
       function truncateText(text, maxLength = 30) {
-        if (text.length > maxLength) {
-          return text.substring(0, maxLength - 3) + "...";
-        }
-        return text;
+        return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
       }
 
       // Recursively converts JSON to a tree structure and builds a fullPath for each node.
       function jsonToTree(key, value, parentPath) {
         let currentPath = buildPath(parentPath, key);
-        let node = {};
-        node.name = key;
-        node.fullPath = currentPath;
+        let node = { name: key, fullPath: currentPath };
 
         if (typeof value === "object" && value !== null) {
           if (Array.isArray(value)) {
@@ -143,27 +149,24 @@
         let keyParts = fullPath.split(".");
         let lastKey = keyParts[keyParts.length - 1];
         selection.datum().data.value = newValue;
-        let fullText = lastKey + ": " + newValue;
-        selection.text(truncateText(fullText));
+        selection.text(truncateText(lastKey + ": " + newValue));
       }
 
-      // Function to set the rows of the textarea based on the number of lines
+      // Adjust textarea rows based on text content.
       function setTextareaRows(textarea, text) {
         const lines = text.split('\n').length;
-        const maxRows = 10;
-        const minRows = 1;
+        const maxRows = 10, minRows = 1;
         textarea.rows = Math.min(Math.max(lines, minRows), maxRows);
       }
 
-      // Fetch the JSON data and build the radial tree.
+      // Fetch JSON data and build the radial tree.
       fetch("/get_tree")
         .then(response => response.json())
         .then(jsonData => {
           let dataForTree = (jsonData && jsonData.agents) ? jsonData.agents : jsonData;
           const treeData = jsonToTree("agents", dataForTree, "");
 
-          const width = 960,
-                height = 800,
+          const width = 960, height = 800,
                 radius = Math.min(width, height) / 2 - 20;
 
           const svg = d3.select("#tree-container")
@@ -174,10 +177,7 @@
             .attr("transform", `translate(${width / 2},${height / 2})`);
 
           const rootNode = d3.hierarchy(treeData);
-
-          const treeLayout = d3.tree()
-            .size([2 * Math.PI, radius]);
-          treeLayout(rootNode);
+          d3.tree().size([2 * Math.PI, radius])(rootNode);
 
           const linkGenerator = d3.linkRadial()
             .angle(d => d.x)
@@ -195,7 +195,9 @@
             .enter()
             .append("g")
             .attr("class", "node")
-            .attr("transform", d => `translate(${d.y * Math.cos(d.x - Math.PI / 2)}, ${d.y * Math.sin(d.x - Math.PI / 2)})`);
+            .attr("transform", d =>
+              `translate(${d.y * Math.cos(d.x - Math.PI / 2)}, ${d.y * Math.sin(d.x - Math.PI / 2)})`
+            );
 
           node.append("circle").attr("r", 5);
 
@@ -249,7 +251,7 @@
         }
       };
 
-      // Save changes
+      // Save changes button handler
       document.getElementById("save-variants").addEventListener("click", function() {
         if (changes.length === 0) {
           alert("No changes to save.");
@@ -274,7 +276,7 @@
         });
       });
 
-      // Run experiment
+      // Run experiment button handler
       document.getElementById("run-experiment").addEventListener("click", function() {
         fetch("/run_experiment", {
           method: "POST",
@@ -295,70 +297,116 @@
       });
     </script>
 
-    <!-- Script to render multi-agent components using server-passed variables -->
+    <!-- Multi-Agent Components Script -->
     <script>
-      const agent_list = {{ agent_list | tojson }};
-      const plugin_list = {{ plugin_list | tojson }};
-      const function_list = {{ function_list | tojson }};
+      /* 
+         IMPORTANT: If you're using a server-side templating engine like Jinja2,
+         these variables will be automatically provided (e.g., {{ agent_list | tojson }})
+         For testing without a templating engine, we provide fallback definitions.
+      */
+      // Uncomment the following if your templating engine does not supply these:
+      const agent_list = [
+        { agent_name: "Agent A", agent_description: "Description for Agent A", agent_instruction: "Instruction A" },
+        { agent_name: "Agent B", agent_description: "Description for Agent B", agent_instruction: "Instruction B" }
+      ];
+      const plugin_list = [
+        { plugin_name: "Plugin X", plugin_class_name: "PluginClassX" },
+        { plugin_name: "Plugin Y", plugin_class_name: "PluginClassY" }
+      ];
+      const function_list = [
+        { function_class_name: "module.func1", description: "Function 1 description" },
+        { function_class_name: "module.func2", description: "Function 2 description" }
+      ];
 
-      // Function to render the multi-agent components into the sidebar container.
+      // Helper function to create a draggable card element.
+      function createCard(content, type) {
+        const card = document.createElement("div");
+        card.classList.add("component-card");
+        card.setAttribute("draggable", "true");
+        card.dataset.type = type;
+        card.innerHTML = content;
+
+        // Drag events.
+        card.addEventListener("dragstart", (e) => {
+          card.classList.add("dragging");
+          e.dataTransfer.setData("text/plain", content);
+        });
+        card.addEventListener("dragend", () => {
+          card.classList.remove("dragging");
+        });
+
+        // Hover event: using the title attribute for a simple tooltip.
+        card.addEventListener("mouseover", () => {
+          // Additional hover interactions can be added here.
+        });
+
+        // Click event: placeholder for edit handling.
+        card.addEventListener("click", () => {
+          console.log("Editing", type, content);
+          // Insert edit handling logic here if needed.
+        });
+
+        return card;
+      }
+
+      // Render the multi-agent components as draggable cards.
       function renderMultiAgentComponents() {
         const container = document.getElementById("multi-agent-components");
         if (!container) return;
-
-        // Clear the container
         container.innerHTML = '';
 
-        // Render Agents
+        // Render Agents section.
         let agentsDiv = document.createElement("div");
+        agentsDiv.classList.add("component-section");
         let agentsHeader = document.createElement("h3");
         agentsHeader.textContent = "Agents";
         agentsDiv.appendChild(agentsHeader);
-        let agentsList = document.createElement("ul");
+        let agentsList = document.createElement("div");
+        agentsList.classList.add("component-list");
         agent_list.forEach(agent => {
-            let li = document.createElement("li");
-            li.textContent = agent.agent_name;
-            // Combine description and instruction as tooltip
-            li.title = agent.agent_description + (agent.agent_instruction ? " | " + agent.agent_instruction : "");
-            agentsList.appendChild(li);
+          let card = createCard(agent.agent_name, "agent");
+          card.title = agent.agent_description + (agent.agent_instruction ? " | " + agent.agent_instruction : "");
+          agentsList.appendChild(card);
         });
         agentsDiv.appendChild(agentsList);
         container.appendChild(agentsDiv);
 
-        // Render Plugins
+        // Render Plugins section.
         let pluginsDiv = document.createElement("div");
+        pluginsDiv.classList.add("component-section");
         let pluginsHeader = document.createElement("h3");
         pluginsHeader.textContent = "Plugins";
         pluginsDiv.appendChild(pluginsHeader);
-        let pluginsList = document.createElement("ul");
+        let pluginsList = document.createElement("div");
+        pluginsList.classList.add("component-list");
         plugin_list.forEach(plugin => {
-            let li = document.createElement("li");
-            li.textContent = plugin.plugin_name;
-            li.title = plugin.plugin_class_name;
-            pluginsList.appendChild(li);
+          let card = createCard(plugin.plugin_name, "plugin");
+          card.title = plugin.plugin_class_name;
+          pluginsList.appendChild(card);
         });
         pluginsDiv.appendChild(pluginsList);
         container.appendChild(pluginsDiv);
 
-        // Render Functions
+        // Render Functions section.
         let functionsDiv = document.createElement("div");
+        functionsDiv.classList.add("component-section");
         let functionsHeader = document.createElement("h3");
         functionsHeader.textContent = "Functions";
         functionsDiv.appendChild(functionsHeader);
-        let functionsList = document.createElement("ul");
+        let functionsList = document.createElement("div");
+        functionsList.classList.add("component-list");
         function_list.forEach(func => {
-            let li = document.createElement("li");
-            let nameParts = func.function_class_name.split(".");
-            let name = nameParts[nameParts.length - 1];
-            li.textContent = name;
-            li.title = func.description;
-            functionsList.appendChild(li);
+          let parts = func.function_class_name.split(".");
+          let name = parts[parts.length - 1];
+          let card = createCard(name, "function");
+          card.title = func.description;
+          functionsList.appendChild(card);
         });
         functionsDiv.appendChild(functionsList);
         container.appendChild(functionsDiv);
       }
 
-      // Render the components after DOM is loaded.
+      // Render the components when the DOM is fully loaded.
       document.addEventListener("DOMContentLoaded", renderMultiAgentComponents);
     </script>
   </body>
