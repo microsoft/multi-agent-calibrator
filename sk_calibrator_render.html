@@ -7,7 +7,6 @@
     <style>
       /* Tree and modal styles */
       .node circle {
-        fill: #fff;
         stroke: steelblue;
         stroke-width: 3px;
       }
@@ -199,7 +198,53 @@
               `translate(${d.y * Math.cos(d.x - Math.PI / 2)}, ${d.y * Math.sin(d.x - Math.PI / 2)})`
             );
 
-          node.append("circle").attr("r", 5);
+          // Append circles with size based on node type.
+          node.append("circle")
+            .attr("r", function(d) {
+              const rootSize = 10;
+              if (d.depth === 0) {
+                return rootSize;
+              } else if(d.parent && d.parent.data.name.toLowerCase() === "agents") {
+                // These are direct children of the multi-agent node.
+                // If the node is the container for plugins/functions, leave white.
+                let n = d.data.name.toLowerCase();
+                if(n === "plugins" || n === "functions") {
+                  return rootSize * 0.75; // size for container nodes
+                } else {
+                  return rootSize * 0.75; // agent root node size
+                }
+              } else if(d.parent && d.parent.data.name.toLowerCase() === "plugins") {
+                return rootSize / 2; // plugin root node size
+              } else if(d.parent && d.parent.data.name.toLowerCase() === "functions") {
+                return (rootSize / 2) / 2; // function root node size
+              } else {
+                return rootSize * 0.5; // default for other nodes (attributes, etc.)
+              }
+            })
+            .attr("fill", function(d) {
+              if(d.depth === 0) {
+                // Multi-agent root node.
+                return "steelblue";
+              } else if(d.parent && d.parent.data.name.toLowerCase() === "agents") {
+                // Direct children of the multi-agent node.
+                let n = d.data.name.toLowerCase();
+                if(n === "plugins" || n === "functions") {
+                  // Container nodes (plugins/functions) are left with default fill.
+                  return "#fff";
+                } else {
+                  // Agent root node.
+                  return "lightgreen";
+                }
+              } else if(d.parent && d.parent.data.name.toLowerCase() === "plugins") {
+                // Plugin root node (child of the "plugins" container).
+                return "orange";
+              } else if(d.parent && d.parent.data.name.toLowerCase() === "functions") {
+                // Function root node (child of the "functions" container).
+                return "purple";
+              } else {
+                return "#fff"; // Attributes or others.
+              }
+            });
 
           node.append("text")
             .attr("dy", "0.31em")
