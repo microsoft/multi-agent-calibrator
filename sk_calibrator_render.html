@@ -1,4 +1,3 @@
-<!-- # Copyright (c) Microsoft. All rights reserved. -->
 <!DOCTYPE html>
 <html>
   <head>
@@ -6,7 +5,7 @@
     <title>Radial JSON Tree Visualization with D3.js</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
-      /* Existing styles */
+      /* Tree and modal styles */
       .node circle {
         fill: #fff;
         stroke: steelblue;
@@ -48,7 +47,7 @@
         width: 100%;
         resize: none;
       }
-      /* Existing sidebar styles */
+      /* Sidebar styles */
       #multi-agent-components {
         position: absolute;
         top: 20px;
@@ -62,7 +61,7 @@
       #multi-agent-components h3 {
         margin-top: 0;
       }
-      /* New CSS for interactive component cards */
+      /* Styles for interactive component cards */
       .component-section {
         margin-bottom: 16px;
       }
@@ -79,7 +78,6 @@
         border-radius: 4px;
         user-select: none;
       }
-      /* Optional: visual feedback for dragging */
       .component-card.dragging {
         opacity: 0.5;
       }
@@ -90,10 +88,12 @@
     <button id="save-variants">Save Changes</button>
     <button id="run-experiment">Run Experiment</button>
 
+    <!-- Container for the radial tree -->
     <div id="tree-container"></div>
     <!-- Sidebar container for Multi-Agent Components -->
     <div id="multi-agent-components"></div>
 
+    <!-- Modal for editing node values -->
     <div id="edit-modal">
       <div id="modal-content">
         <h3>Edit Value</h3>
@@ -114,18 +114,18 @@
       const saveButton = document.getElementById('save-button');
       const cancelButton = document.getElementById('cancel-button');
 
-      // Helper function to build the full path correctly.
+      // Helper: Build full path from parent and key.
       function buildPath(parentPath, key) {
         if (!parentPath) return key;
         return key.startsWith("[") ? parentPath + key : parentPath + "." + key;
       }
 
-      // Helper to truncate text to a maximum length (default 30 characters)
+      // Helper: Truncate text to a maximum length.
       function truncateText(text, maxLength = 30) {
         return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
       }
 
-      // Recursively converts JSON to a tree structure and builds a fullPath for each node.
+      // Convert JSON to a tree structure (recursively).
       function jsonToTree(key, value, parentPath) {
         let currentPath = buildPath(parentPath, key);
         let node = { name: key, fullPath: currentPath };
@@ -143,7 +143,7 @@
         return node;
       }
 
-      // Updates the displayed text for a node after its value is changed.
+      // Update node text after a value change.
       function updateNodeText(selection, newValue) {
         let fullPath = selection.datum().data.fullPath;
         let keyParts = fullPath.split(".");
@@ -152,14 +152,14 @@
         selection.text(truncateText(lastKey + ": " + newValue));
       }
 
-      // Adjust textarea rows based on text content.
+      // Adjust textarea rows based on content.
       function setTextareaRows(textarea, text) {
         const lines = text.split('\n').length;
         const maxRows = 10, minRows = 1;
         textarea.rows = Math.min(Math.max(lines, minRows), maxRows);
       }
 
-      // Fetch JSON data and build the radial tree.
+      // Build the radial tree from /get_tree API.
       fetch("/get_tree")
         .then(response => response.json())
         .then(jsonData => {
@@ -219,7 +219,7 @@
         })
         .catch(error => console.error("Error fetching tree data:", error));
 
-      // Modal button handlers
+      // Modal button handlers.
       saveButton.onclick = function() {
         if (currentSelection && currentData) {
           const newValue = textarea.value;
@@ -251,7 +251,7 @@
         }
       };
 
-      // Save changes button handler
+      // Save changes button handler.
       document.getElementById("save-variants").addEventListener("click", function() {
         if (changes.length === 0) {
           alert("No changes to save.");
@@ -276,7 +276,7 @@
         });
       });
 
-      // Run experiment button handler
+      // Run experiment button handler.
       document.getElementById("run-experiment").addEventListener("click", function() {
         fetch("/run_experiment", {
           method: "POST",
@@ -297,28 +297,14 @@
       });
     </script>
 
-    <!-- Multi-Agent Components Script -->
+    <!-- Multi-Agent Components Script using server-passed variables -->
     <script>
-      /* 
-         IMPORTANT: If you're using a server-side templating engine like Jinja2,
-         these variables will be automatically provided (e.g., {{ agent_list | tojson }})
-         For testing without a templating engine, we provide fallback definitions.
-      */
-      // Uncomment the following if your templating engine does not supply these:
-      const agent_list = [
-        { agent_name: "Agent A", agent_description: "Description for Agent A", agent_instruction: "Instruction A" },
-        { agent_name: "Agent B", agent_description: "Description for Agent B", agent_instruction: "Instruction B" }
-      ];
-      const plugin_list = [
-        { plugin_name: "Plugin X", plugin_class_name: "PluginClassX" },
-        { plugin_name: "Plugin Y", plugin_class_name: "PluginClassY" }
-      ];
-      const function_list = [
-        { function_class_name: "module.func1", description: "Function 1 description" },
-        { function_class_name: "module.func2", description: "Function 2 description" }
-      ];
+      // Use the values passed from the server.
+      const agent_list = {{ agent_list | tojson }};
+      const plugin_list = {{ plugin_list | tojson }};
+      const function_list = {{ function_list | tojson }};
 
-      // Helper function to create a draggable card element.
+      // Helper: Create a draggable card element.
       function createCard(content, type) {
         const card = document.createElement("div");
         card.classList.add("component-card");
@@ -335,21 +321,21 @@
           card.classList.remove("dragging");
         });
 
-        // Hover event: using the title attribute for a simple tooltip.
+        // Simple tooltip is provided via the title attribute.
         card.addEventListener("mouseover", () => {
           // Additional hover interactions can be added here.
         });
 
-        // Click event: placeholder for edit handling.
+        // Click event placeholder for future edit handling.
         card.addEventListener("click", () => {
           console.log("Editing", type, content);
-          // Insert edit handling logic here if needed.
+          // Insert custom edit logic if needed.
         });
 
         return card;
       }
 
-      // Render the multi-agent components as draggable cards.
+      // Render multi-agent components from server-passed data.
       function renderMultiAgentComponents() {
         const container = document.getElementById("multi-agent-components");
         if (!container) return;
@@ -406,7 +392,7 @@
         container.appendChild(functionsDiv);
       }
 
-      // Render the components when the DOM is fully loaded.
+      // Render multi-agent components once the DOM is loaded.
       document.addEventListener("DOMContentLoaded", renderMultiAgentComponents);
     </script>
   </body>
