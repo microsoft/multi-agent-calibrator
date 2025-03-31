@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft. All rights reserved.
-
 from flask import Flask, jsonify, abort, render_template, request
 import json
 import os
+import asyncio
 # Import the configuration loader
 from sk_calibrator_config import load_config
+from sk_calibrator_object_loader import evaluate_all_variants, modify_multi_agent
+
 # Load endpoints from YAML configuration
 config = load_config("sample_sk_orchestrator_config.yaml")
 azure_openai_endpoint = config.get("azureopenai_endpoint")
@@ -67,9 +69,6 @@ def save_variant():
 
 @app.route('/run_experiment', methods=['POST'])
 def run_experiment():
-    from sk_calibrator_object_loader import evaluate_all_variants, modify_multi_agent
-    import asyncio
-
     # Read from experiment with a list of variants
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     if not os.path.exists(variant_file):
