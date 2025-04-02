@@ -46,16 +46,16 @@
         width: 100%;
         resize: none;
       }
-      /* Sidebar styles */
+      /* Sidebar styles for multi-agent components */
       #multi-agent-components {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        width: 220px;
-        background: #f9f9f9;
-        border: 1px solid #ccc;
-        padding: 10px;
-        overflow-y: auto;
+          position: fixed;
+          top: 20px;
+          right: 340px;
+          width: 220px;
+          background: #f9f9f9;
+          border: 1px solid #ccc;
+          padding: 10px;
+          overflow-y: auto;
       }
       #multi-agent-components h3 {
         margin-top: 0;
@@ -80,6 +80,38 @@
       .component-card.dragging {
         opacity: 0.5;
       }
+      /* Tooltip style (minimal change) */
+      .tooltip {
+        position: absolute;
+        background: #333;
+        color: #fff;
+        padding: 5px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        display: none;
+        pointer-events: none;
+        z-index: 1000;
+      }
+      /* Log panel styles (new addition) */
+      #log-panel {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 300px;
+        height: calc(100% - 40px);
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+        overflow-y: auto;
+        padding: 10px;
+        z-index: 100;
+      }
+      #log-panel h3 {
+        margin-top: 0;
+      }
+      #logs div {
+        margin-bottom: 5px;
+        font-family: monospace;
+      }
     </style>
   </head>
   <body>
@@ -91,6 +123,11 @@
     <div id="tree-container"></div>
     <!-- Sidebar container for Multi-Agent Components -->
     <div id="multi-agent-components"></div>
+    <!-- Log panel for real-time experiment logs (new addition) -->
+    <div id="log-panel">
+      <h3>Experiment Logs</h3>
+      <div id="logs"></div>
+    </div>
 
     <!-- Modal for editing node values -->
     <div id="edit-modal">
@@ -101,6 +138,9 @@
         <button id="cancel-button">Cancel</button>
       </div>
     </div>
+
+    <!-- Tooltip container (minimal addition) -->
+    <div id="custom-tooltip" class="tooltip"></div>
 
     <!-- Main Script for tree rendering and modal handling -->
     <script>
@@ -148,7 +188,22 @@
         let keyParts = fullPath.split(".");
         let lastKey = keyParts[keyParts.length - 1];
         selection.datum().data.value = newValue;
-        selection.text(truncateText(lastKey + ": " + newValue));
+        let newText = lastKey + ": " + newValue;
+        selection.selectAll("*").remove();
+        if (newValue !== undefined && newText.indexOf(": ") !== -1) {
+          let splitIndex = newText.indexOf(": ");
+          let keyPart = newText.substring(0, splitIndex + 2);
+          let valuePart = newText.substring(splitIndex + 2);
+          selection.append("tspan").text(keyPart);
+          let keyLabel = keyPart.substring(0, keyPart.length - 2).trim();
+          if (keyLabel === "name") {
+            selection.append("tspan").text(valuePart).style("font-weight", "bold");
+          } else {
+            selection.append("tspan").text(valuePart);
+          }
+        } else {
+          selection.text(newText);
+        }
       }
 
       // Adjust textarea rows based on content.
@@ -198,51 +253,42 @@
               `translate(${d.y * Math.cos(d.x - Math.PI / 2)}, ${d.y * Math.sin(d.x - Math.PI / 2)})`
             );
 
-          // Append circles with size based on node type.
           node.append("circle")
             .attr("r", function(d) {
               const rootSize = 10;
               if (d.depth === 0) {
                 return rootSize;
               } else if(d.parent && d.parent.data.name.toLowerCase() === "agents") {
-                // These are direct children of the multi-agent node.
-                // If the node is the container for plugins/functions, leave white.
                 let n = d.data.name.toLowerCase();
                 if(n === "plugins" || n === "functions") {
-                  return rootSize * 0.75; // size for container nodes
+                  return rootSize * 0.75;
                 } else {
-                  return rootSize * 0.75; // agent root node size
+                  return rootSize * 0.75;
                 }
               } else if(d.parent && d.parent.data.name.toLowerCase() === "plugins") {
-                return rootSize / 2; // plugin root node size
+                return rootSize / 2;
               } else if(d.parent && d.parent.data.name.toLowerCase() === "functions") {
-                return (rootSize / 2) / 2; // function root node size
+                return (rootSize / 2) / 2;
               } else {
-                return rootSize * 0.5; // default for other nodes (attributes, etc.)
+                return rootSize * 0.5;
               }
             })
             .attr("fill", function(d) {
               if(d.depth === 0) {
-                // Multi-agent root node.
                 return "steelblue";
               } else if(d.parent && d.parent.data.name.toLowerCase() === "agents") {
-                // Direct children of the multi-agent node.
                 let n = d.data.name.toLowerCase();
                 if(n === "plugins" || n === "functions") {
-                  // Container nodes (plugins/functions) are left with default fill.
                   return "#fff";
                 } else {
-                  // Agent root node.
                   return "lightgreen";
                 }
               } else if(d.parent && d.parent.data.name.toLowerCase() === "plugins") {
-                // Plugin root node (child of the "plugins" container).
                 return "orange";
               } else if(d.parent && d.parent.data.name.toLowerCase() === "functions") {
-                // Function root node (child of the "functions" container).
                 return "purple";
               } else {
-                return "#fff"; // Attributes or others.
+                return "#fff";
               }
             });
 
@@ -250,7 +296,24 @@
             .attr("dy", "0.31em")
             .attr("x", d => (Math.cos(d.x - Math.PI / 2) < 0 ? -10 : 10))
             .attr("text-anchor", d => (Math.cos(d.x - Math.PI / 2) < 0 ? "end" : "start"))
-            .text(d => truncateText(d.data.name))
+            .each(function(d) {
+              let truncated = truncateText(d.data.name);
+              if (d.data.value !== undefined && truncated.indexOf(": ") !== -1) {
+                let splitIndex = truncated.indexOf(": ");
+                let keyPart = truncated.substring(0, splitIndex + 2);
+                let valuePart = truncated.substring(splitIndex + 2);
+                d3.select(this).append("tspan").text(keyPart);
+                let keyLabel = keyPart.substring(0, keyPart.length - 2).trim();
+                if (keyLabel === "name") {
+                  d3.select(this).append("tspan").text(valuePart).style("font-weight", "bold");
+                } else {
+                  d3.select(this).append("tspan").text(valuePart);
+                }
+              } else {
+                d3.select(this).text(truncated);
+              }
+            })
+            .attr("data-hint", d => d.data.name)
             .on("click", function(event, d) {
               if (!d.data.children) {
                 currentSelection = d3.select(this);
@@ -366,15 +429,11 @@
           card.classList.remove("dragging");
         });
 
-        // Simple tooltip is provided via the title attribute.
-        card.addEventListener("mouseover", () => {
-          // Additional hover interactions can be added here.
-        });
-
+        // Simple tooltip provided by the title attribute.
+        card.addEventListener("mouseover", () => {});
         // Click event placeholder for future edit handling.
         card.addEventListener("click", () => {
           console.log("Editing", type, content);
-          // Insert custom edit logic if needed.
         });
 
         return card;
@@ -439,6 +498,45 @@
 
       // Render multi-agent components once the DOM is loaded.
       document.addEventListener("DOMContentLoaded", renderMultiAgentComponents);
+    </script>
+
+    <!-- Tooltip behavior script (minimal addition) -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const tooltip = document.getElementById('custom-tooltip');
+
+        document.body.addEventListener('mouseover', function(e) {
+          // Use closest() to find the nearest element with a data-hint attribute.
+          const targetWithHint = e.target.closest('[data-hint]');
+          if (targetWithHint) {
+            const hint = targetWithHint.getAttribute('data-hint');
+            tooltip.textContent = hint;
+            tooltip.style.display = 'block';
+            tooltip.style.left = (e.pageX + 10) + 'px';
+            tooltip.style.top = (e.pageY + 10) + 'px';
+          }
+        });
+
+        document.body.addEventListener('mousemove', function(e) {
+          tooltip.style.left = (e.pageX + 10) + 'px';
+          tooltip.style.top = (e.pageY + 10) + 'px';
+        });
+
+        document.body.addEventListener('mouseout', function(e) {
+          tooltip.style.display = 'none';
+        });
+      });
+    </script>
+
+    <!-- SocketIO Client Script for real-time experiment logs (new addition) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js"></script>
+    <script>
+      var socket = io();
+      socket.on('experiment_log', function(data) {
+        var logEl = document.createElement('div');
+        logEl.textContent = data.log;
+        document.getElementById('logs').appendChild(logEl);
+      });
     </script>
   </body>
 </html>
