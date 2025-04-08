@@ -7,3 +7,10 @@
 			- Team Availability Function:
 	- EngineerAgent: This agent is responsible for managing the engineering team. It creates and manages the engineering team, assigns tasks to participants, and tracks the progress of each session.
 	- TesterAgent: This agent is responsible for managing the testing team. It creates and manages the testing team, assigns tasks to participants, and tracks the progress of each session.
+
+# Run locally
+- Rename 'appsettings.sample.json' to appsettings.json, and ensure 'Copy Always' for this file in Visual Studio.
+  - Replace the settings inside the file to your own setting.
+- Grant permission to your account to the AOAI resource
+  - Assign role "Cognitive Services OpenAI Contributor" to your account on <AOAI-NAME> in Azure
+- Auth: In Visual Studio, 'Tools' => 'Options' => 'Azure Service Authentication' => 'Account Selection' choose your account you want to use during auth.
