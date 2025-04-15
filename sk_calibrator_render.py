@@ -86,13 +86,13 @@ def run_experiment():
         
     # Emit log messages in real time to UI
     socketio.emit('experiment_log', {'log': "Starting experiment..."})
-    time.sleep(0.5)
+    await socketio.sleep(0.5)
     socketio.emit('experiment_log', {'log': "Evaluating all variants..."})
-    time.sleep(0.5)
+    await socketio.sleep(0.5)
 
     # Run the experiment with each variant
     # Synchronously run the async evaluate_all_variants function
-    best_variant_key, best_variant_value = asyncio.run(evaluate_all_variants(multi_chat))
+    best_variant_key, best_variant_value = await evaluate_all_variants(multi_chat)
     
     socketio.emit('experiment_log', {'log': "Experiment complete."})
     return jsonify({"result": f"Best variant: {best_variant_key}, Value: {best_variant_value}"})
