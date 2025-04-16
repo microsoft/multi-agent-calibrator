@@ -92,7 +92,7 @@ def run_experiment():
 
     # Run the experiment with each variant
     # Synchronously run the async evaluate_all_variants function
-    best_variant_key, best_variant_value = asyncio.run(evaluate_all_variants(multi_chat))
+    best_variant_key, best_variant_value = asyncio.run(evaluate_all_variants(multi_chat,socketio))
     
     socketio.emit('experiment_log', {'log': "Experiment complete."})
     return jsonify({"result": f"Best variant: {best_variant_key}, Value: {best_variant_value}"})
