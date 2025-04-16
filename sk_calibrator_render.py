@@ -61,9 +61,9 @@ def get_tree():
 @app.route('/save_variant', methods=['POST'])
 def save_variant():
     data = request.get_json()
-    if not data or 'changes' not in data:
-        abort(400, description="Invalid data. Expecting 'changes'.")
-    variant = data["changes"]
+    if not data or 'modified_tree' not in data:
+        abort(400, description="Invalid data. Expecting 'modified_tree'.")
+    variant = data["modified_tree"]
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     try:
         with open(variant_file, 'a') as f:
@@ -92,7 +92,7 @@ def run_experiment():
 
     # Run the experiment with each variant
     # Synchronously run the async evaluate_all_variants function
-    best_variant_key, best_variant_value = await evaluate_all_variants(multi_chat)
+    best_variant_key, best_variant_value = asyncio.run(evaluate_all_variants(multi_chat,socketio))
     
     socketio.emit('experiment_log', {'log': "Experiment complete."})
     return jsonify({"result": f"Best variant: {best_variant_key}, Value: {best_variant_value}"})

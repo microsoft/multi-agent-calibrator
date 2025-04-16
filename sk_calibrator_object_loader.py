@@ -313,7 +313,7 @@ def read_variants_from_jsonl(file_path):
 
 
 
-async def evaluate_all_variants(multi_chat):
+async def evaluate_all_variants(multi_chat,socketio):
 
     # Read variants from a JSONL file
     variants = read_variants_from_jsonl('sk_calibrator_experiment_1_variants.jsonl')
@@ -325,6 +325,7 @@ async def evaluate_all_variants(multi_chat):
     # Modify the multi_agent based on the variants
     for i, variant in enumerate(variants):
         print("Variant: ", variant)
+        socketio.emit('experiment_log', {'log': f"Evaluating variant {i+1}..."})
         score_total = 0.0
         score_count = 0
 
@@ -364,6 +365,7 @@ async def evaluate_all_variants(multi_chat):
 
                     async for response in multi_chat.invoke():
                         print("\n-------------------------------------\n", response.name, "\n",  response.content, "\n\n\n")
+                        #socketio.emit('experiment_log', {'log': f"Multi-Agent {response.name}: {response.content}"})
                         last_response = response.content
 
                         # Append the response to the aggregated outputs.
@@ -403,11 +405,10 @@ async def evaluate_all_variants(multi_chat):
 
                 # Ensure the score is between 0 and 1, and convert to float
                 score = float(score.strip())
+                socketio.emit('experiment_log', {'log': f"Score for variant {i+1}: {score} \n system_answer: {system_answer} \n expected_answer: {expected_answer}"})
                 score_total += score
                 score_count += 1
 
-            # TODO: Remove this debug code
-            #break
 
         print("score_total: ", score_total)
         print("score_count: ", score_count)
@@ -416,13 +417,12 @@ async def evaluate_all_variants(multi_chat):
 
         average_scores[i] = score_total / score_count
 
-        # TODO: Remove this debug code
-        #break
 
     # TODO: Now identify the best variant with highest score
     best_variant_key = max(average_scores, key=average_scores.get)
     best_variant_value = average_scores[best_variant_key]
     print(f"Best Variant: {best_variant_key} with score: {best_variant_value}")
+    socketio.emit('experiment_log', {'log': f"Best Variant: {best_variant_key} with score: {best_variant_value}"})
     return best_variant_key, best_variant_value
 
 
