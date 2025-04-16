@@ -144,6 +144,7 @@
 
     <!-- Main Script for tree rendering and modal handling -->
     <script>
+      let globalTree = null; // new global variable to hold the full tree object
       let changes = [];
       let currentSelection = null;
       let currentData = null;
@@ -219,6 +220,7 @@
         .then(jsonData => {
           let dataForTree = (jsonData && jsonData.agents) ? jsonData.agents : jsonData;
           const treeData = jsonToTree("agents", dataForTree, "");
+          globalTree = treeData; // save the entire tree globally
 
           const width = 960, height = 800,
                 radius = Math.min(width, height) / 2 - 20;
@@ -359,27 +361,26 @@
         }
       };
 
-      // Save changes button handler.
+      // Updated "Save Changes" button handler to send the entire modified object.
       document.getElementById("save-variants").addEventListener("click", function() {
-        if (changes.length === 0) {
-          alert("No changes to save.");
+        if (!globalTree) {
+          alert("No data to save.");
           return;
         }
         fetch("/save_variant", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ changes: changes })
+          body: JSON.stringify({ modified_tree: globalTree })
         })
         .then(response => {
           if (!response.ok) throw new Error("Failed to save variant");
           return response.json();
         })
         .then(result => {
-          alert("Changes saved successfully!");
-          changes = [];
+          alert("Modified tree saved successfully!");
         })
         .catch(error => {
-          console.error("Error saving variant:", error);
+          console.error("Error saving modified tree:", error);
           alert("Error saving changes.");
         });
       });

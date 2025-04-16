@@ -61,9 +61,9 @@ def get_tree():
 @app.route('/save_variant', methods=['POST'])
 def save_variant():
     data = request.get_json()
-    if not data or 'changes' not in data:
-        abort(400, description="Invalid data. Expecting 'changes'.")
-    variant = data["changes"]
+    if not data or 'modified_tree' not in data:
+        abort(400, description="Invalid data. Expecting 'modified_tree'.")
+    variant = data["modified_tree"]
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     try:
         with open(variant_file, 'a') as f:
