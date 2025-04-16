@@ -3,6 +3,7 @@ from flask import Flask, jsonify, abort, render_template, request
 import json
 import os
 import asyncio
+import time
 # Import the configuration loader
 from sk_calibrator_config import load_config
 from sk_calibrator_object_loader import evaluate_all_variants, modify_multi_agent
@@ -28,6 +29,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Serve templates from the current directory.
 app = Flask(__name__, template_folder=current_dir)
+
+# Import SocketIO and initialize it
+from flask_socketio import SocketIO, emit
+socketio = SocketIO(app)
 
 @app.route('/')
 def index():
@@ -78,12 +83,19 @@ def run_experiment():
             variants = [json.loads(line) for line in f]
     except Exception as e:
         abort(500, description=str(e))
+        
+    # Emit log messages in real time to UI
+    socketio.emit('experiment_log', {'log': "Starting experiment..."})
+    await socketio.sleep(0.5)
+    socketio.emit('experiment_log', {'log': "Evaluating all variants..."})
+    await socketio.sleep(0.5)
 
     # Run the experiment with each variant
     # Synchronously run the async evaluate_all_variants function
-    best_variant_key, best_variant_value = asyncio.run(evaluate_all_variants(multi_chat))
-
+    best_variant_key, best_variant_value = await evaluate_all_variants(multi_chat)
+    
+    socketio.emit('experiment_log', {'log': "Experiment complete."})
     return jsonify({"result": f"Best variant: {best_variant_key}, Value: {best_variant_value}"})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)

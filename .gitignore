@@ -406,3 +406,5 @@ __pycache__/
 sk_calibrator_config.yaml
 sk_calibrator_objects.json
 sk_calibrator_experiment_variants_sample.jsonl
+
+sample_csharp\SkSampleScrumPlanning\SkSampleScrumPlanning\appsettings.json

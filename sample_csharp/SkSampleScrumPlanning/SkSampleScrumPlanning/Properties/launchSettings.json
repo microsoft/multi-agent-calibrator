@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SkSampleScrumPlanning": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
