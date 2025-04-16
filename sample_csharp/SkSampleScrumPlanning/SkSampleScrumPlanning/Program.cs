@@ -60,7 +60,7 @@ public static class Program
             settings.AzureOpenAI.ChatModelDeployment,
             settings.AzureOpenAI.Endpoint,
             new AzureCliCredential())
-            .Build(); ;
+            .Build();
 
         Kernel toolKernel = kernel.Clone();
         toolKernel.Plugins.AddFromType<ClipboardAccess>();

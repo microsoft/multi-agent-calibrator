@@ -86,9 +86,9 @@ def run_experiment():
         
     # Emit log messages in real time to UI
     socketio.emit('experiment_log', {'log': "Starting experiment..."})
-    time.sleep(0.5)
+    await socketio.sleep(0.5)
     socketio.emit('experiment_log', {'log': "Evaluating all variants..."})
-    time.sleep(0.5)
+    await socketio.sleep(0.5)
 
     # Run the experiment with each variant
     # Synchronously run the async evaluate_all_variants function
