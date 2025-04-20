@@ -38,6 +38,53 @@ app = Flask(__name__, template_folder=current_dir)
 from flask_socketio import SocketIO, emit
 socketio = SocketIO(app)
 
+
+def convert_ui_variant_to_sk_objects(ui_variant: dict) -> dict:
+    """
+    Convert a UI variant selection into the sk_calibrator_objects format, 
+    focusing on reconstructing the agent_topology with exact function_class_name matches.
+    """
+    result = {}
+    # Initialize agent_topology with an empty plugin list
+    agent_topology = {"plugin_list": []}
+    
+    # Determine the list of plugin nodes in the UI variant (could be stored under 'children' or 'plugin_list')
+    plugins_ui = ui_variant.get("children") or ui_variant.get("plugin_list") or ui_variant.get("plugins") or []
+    
+    for plugin_node in plugins_ui:
+        # Plugin’s fully‑qualified class name comes directly from the UI node
+        plugin_class_name = plugin_node.get("fully_qualified_name", "")
+        
+        plugin_object = {
+            "plugin_class_name": plugin_class_name,
+            "function_list": []
+        }
+        
+        # Get function nodes under this plugin in the UI (could be under 'children' or 'function_list' keys)
+        function_nodes = plugin_node.get("children") or plugin_node.get("function_list") or plugin_node.get("functions") or []
+        for func_node in function_nodes:
+            ui_full_name = func_node.get("fully_qualified_name", "")
+            # Extract the function_name from UI's "PluginName-function_name"
+            if "-" in ui_full_name:
+                # Split into plugin part and function part (maxsplit=1 to handle only the first hyphen)
+                _, function_name = ui_full_name.split("-", 1)
+            else:
+                # If no hyphen, treat the whole name as the function name (perhaps already fully qualified in some cases)
+                function_name = ui_full_name
+            
+            # Directly derive fully‑qualified function class name from the UI entry.
+            # If the UI encodes it as "PluginName-function_name", convert the hyphen to a dot.
+            full_func_class = ui_full_name.replace("-", ".")
+            plugin_object["function_list"].append({"function_class_name": full_func_class})
+        
+        # Add the plugin object to the agent_topology's plugin list (even if its function_list is empty)
+        agent_topology["plugin_list"].append(plugin_object)
+    
+    # Even if plugins_ui is empty (no plugins selected), agent_topology with an empty plugin_list is retained
+    result["agent_topology"] = agent_topology
+    return result
+
+
 @app.route('/')
 def index():
     # Pass the multi-agent component lists to the template.
@@ -75,11 +122,13 @@ def save_variant():
     if not data or 'modified_tree' not in data:
         abort(400, description="Invalid data. Expecting 'changes'.")
     variant = data["modified_tree"]
-    # TODO: Conver the variant to sk_calibrator_objects format on the fly, before save to sk_calibrator_experiment_1_variants.jsonl
+    # Convert the variant to sk_calibrator_objects format on the fly, before save to sk_calibrator_experiment_1_variants.jsonl
+    ui_variant = data["modified_tree"]
+    sk_variant = convert_ui_variant_to_sk_objects(ui_variant)
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     try:
         with open(variant_file, 'a') as f:
-            f.write(json.dumps(variant) + "\n")
+            f.write(json.dumps(sk_variant) + "\n")
     except Exception as e:
         abort(500, description=str(e))
     return jsonify({"status": "success"})
