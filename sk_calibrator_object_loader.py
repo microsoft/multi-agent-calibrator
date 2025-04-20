@@ -312,6 +312,8 @@ def read_variants_from_jsonl(file_path):
     return variants
 
 
+from sk_calibrator_component_assembler import AssembleAgentGroupChat      # NEW
+from types import SimpleNamespace                                          # NEW
 
 async def evaluate_all_variants(multi_chat,socketio):
 
@@ -329,16 +331,12 @@ async def evaluate_all_variants(multi_chat,socketio):
         score_total = 0.0
         score_count = 0
 
-        # Modify the multi_chat object with the variant
-        for modification in variant:
-            modification_key = modification.get("key")  # Extract the key
-            modification_value = modification.get("value")  # Extract the value
-            if not modification_key or modification_value is None:
-                continue  # Skip if key or value is missing
+        # Build a brand‑new multi‑agent chat object from the variant instead
+        # of patching the existing one.
+        sk_components = SimpleNamespace(**variant)            # deserialize → attribute object
+        # Each evaluation cycle will get a fresh AgentGroupChat
+        # assembled exactly as described by the variant payload.
 
-            modify_multi_agent(multi_chat, modification_key, modification_value)
-
-        # Then run all the test cases, with the modified multi_agent
         azureopenai_endpoint = config.get("azureopenai_endpoint")
         test_questions = read_testcases_from_jsonl('./sample_sk_orchestrator_testcases.jsonl') 
         # Test case
@@ -347,12 +345,16 @@ async def evaluate_all_variants(multi_chat,socketio):
             chat_history_input = convert_chat_history_to_sk_chat_history(question_01.chat_history)
             expected_answer = question_01.expected_answer
 
+            # Re‑create a clean AgentGroupChat per question to avoid
+            # cross‑pollinating history between test cases
+            multi_chat_variant = AssembleAgentGroupChat(sk_components)   # NEW
+
             delta = ["planner_agent"]
 
             if True:
                 question_2 = user_input 
                 responses = []
-                await multi_chat.add_chat_message(ChatMessageContent(role=AuthorRole.USER, content=question_2))
+                await multi_chat_variant.add_chat_message(ChatMessageContent(role=AuthorRole.USER, content=question_2))
 
                 TERMINATION_KEYWORD = "TERMINATE"  # Define your termination keyword
 
@@ -363,7 +365,7 @@ async def evaluate_all_variants(multi_chat,socketio):
 
                 try:
 
-                    async for response in multi_chat.invoke():
+                    async for response in multi_chat_variant.invoke():
                         print("\n-------------------------------------\n", response.name, "\n",  response.content, "\n\n\n")
                         #socketio.emit('experiment_log', {'log': f"Multi-Agent {response.name}: {response.content}"})
                         last_response = response.content
@@ -376,8 +378,8 @@ async def evaluate_all_variants(multi_chat,socketio):
                             responses.append("*" * 50)
 
                         # Once the conversation ends, stop the loop
-                        print("Is the conversation complete: ", multi_chat.is_complete)
-                        if multi_chat.is_complete :
+                        print("Is the conversation complete: ", multi_chat_variant.is_complete)
+                        if multi_chat_variant.is_complete :
                             break
 
                         # Check for termination keyword

@@ -3,6 +3,7 @@ import json
 import os
 import asyncio
 import time
+import threading
 
 # Import the configuration loader
 from sk_calibrator_config import load_config
@@ -38,7 +39,11 @@ app = Flask(__name__, template_folder=current_dir)
 
 # Import SocketIO and initialize it
 from flask_socketio import SocketIO, emit
-socketio = SocketIO(app)
+
+# ------------------------------------------------------------------
+# SocketIO – use the safe “threading” backend on Windows
+# ------------------------------------------------------------------
+socketio = SocketIO(app, async_mode="threading")   # <- was: socketio = SocketIO(app)
 
 
 def convert_ui_variant_to_sk_objects(ui_variant: dict) -> dict:
@@ -202,27 +207,49 @@ def save_variant():
         abort(500, description=str(e))
     return jsonify({"status": "success"})
 
+# ------------------------------------------------------------------
+# helper that executes the async evaluator inside its own event‑loop
+# ------------------------------------------------------------------
+def _experiment_runner(multi_chat):
+    """Run evaluate_all_variants in a fresh event‑loop and stream logs."""
+    socketio.emit('experiment_log', {'log': "Starting experiment..."})
+    socketio.sleep(0.5)
+
+    socketio.emit('experiment_log', {'log': "Evaluating all variants..."})
+    socketio.sleep(0.5)
+
+    # create a private event‑loop for the async routine
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    best_key, best_val = loop.run_until_complete(
+        evaluate_all_variants(multi_chat, socketio)      # <- pass socketio!
+    )
+    loop.close()
+
+    socketio.emit('experiment_log', {'log': "Experiment complete."})
+    socketio.emit('experiment_log',
+                  {'log': f"Best variant: {best_key}, Value: {best_val}"})
+
+# ------------------------------------------------------------------
+# route – plain sync function that just launches the background task
+# ------------------------------------------------------------------
 @app.route('/run_experiment', methods=['POST'])
-async def run_experiment():
-    # Read from experiment with a list of variants
+def run_experiment():
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     if not os.path.exists(variant_file):
         abort(404, description="Variant file not found")
+
+    # (still load/validate the file to give early feedback)
     try:
         with open(variant_file, 'r') as f:
             variants = [json.loads(line) for line in f]
     except Exception as e:
         abort(500, description=str(e))
-    # Emit log messages in real time to UI
-    socketio.emit('experiment_log', {'log': "Starting experiment..."})
-    await socketio.sleep(0.5)
-    socketio.emit('experiment_log', {'log': "Evaluating all variants..."})
-    await socketio.sleep(0.5)
-    # Run the experiment with each variant
-    # Synchronously run the async evaluate_all_variants function
-    best_variant_key, best_variant_value = await evaluate_all_variants(multi_chat)
-    socketio.emit('experiment_log', {'log': "Experiment complete."})
-    return jsonify({"result": f"Best variant: {best_variant_key}, Value: {best_variant_value}"})
+
+    # kick off the long‑running task
+    socketio.start_background_task(_experiment_runner, multi_chat)
+
+    return jsonify({"status": "experiment_started"})
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
