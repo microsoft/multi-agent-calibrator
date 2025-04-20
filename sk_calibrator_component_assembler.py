@@ -17,6 +17,7 @@ from semantic_kernel.agents.strategies.selection.kernel_function_selection_strat
 from semantic_kernel.agents.strategies.termination.kernel_function_termination_strategy import KernelFunctionTerminationStrategy
 from semantic_kernel.agents import ChatCompletionAgent, AgentGroupChat
 import asyncio
+import json
 from typing import Annotated
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AsyncAzureOpenAI
@@ -26,7 +27,8 @@ from sk_calibrator_component_function import Calibrator_Component_Function
 
 
 
-def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint: str, azure_openai_model: str) -> AgentGroupChat:
+#def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint: str, azure_openai_model: str) -> AgentGroupChat:
+def AssembleAgentGroupChat(sk_components) -> AgentGroupChat:
     """
     Assemble an AgentGroupChat by creating ChatCompletionAgents based on the agent_topology,
     attaching plugins loaded via the Calibrator_Component_Plugin, and dynamically adding functions
@@ -44,6 +46,9 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     Returns:
         AgentGroupChat: The assembled multi-agent chat object.
     """
+
+    #print(json.dumps(sk_components.to_dict(), indent=4))
+
     agent_group_chat = AgentGroupChat()
 
     # Create a new Azure OpenAI client
@@ -52,16 +57,16 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     )
     azure_oai_client = AsyncAzureOpenAI(
         api_version="2025-01-01-preview",
-        azure_endpoint=azure_openai_endpoint,
+        azure_endpoint=sk_components.azure_openai_endpoint,
         azure_ad_token_provider=token_provider
     )
 
     agents = []
     # Iterate over each agent defined in the topology
-    for topology_agent in agent_topology.get("agents", []):
+    for topology_agent in sk_components.agent_topology.get("agents", []):
         agent_name = topology_agent.get("agent_name")
         # Lookup agent configuration from agent_list
-        agent_config = next((a for a in agent_list if a.get("agent_name") == agent_name), None)
+        agent_config = next((a for a in sk_components.agent_list if a.get("agent_name") == agent_name), None)
         if agent_config is None:
             continue  # Or raise an error if strict matching is required
 
@@ -70,7 +75,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
         service_id = agent_config.get("service_id")
         chat_completion_service = AzureChatCompletion(
             service_id=service_id,
-            deployment_name=azure_openai_model,
+            deployment_name=sk_components.azure_openai_model,
             ad_token_provider=token_provider,
             async_client=azure_oai_client,
         )
@@ -93,7 +98,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
         for topology_plugin in topology_agent.get("plugins", []):
             plugin_name = topology_plugin.get("plugin_name")
             # Lookup plugin configuration from plugin_list
-            plugin_config = next((p for p in plugin_list if p.get("plugin_name") == plugin_name), None)
+            plugin_config = next((p for p in sk_components.plugin_list if p.get("plugin_name") == plugin_name), None)
             if plugin_config is None:
                 continue
 
@@ -106,7 +111,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
             for func in topology_plugin.get("functions", []):
                 function_class_name = func.get("function_class_name")
                 # Lookup function description from function_list if provided
-                func_config = next((f for f in function_list if f.get("function_class_name") == function_class_name), {})
+                func_config = next((f for f in sk_components.function_list if f.get("function_class_name") == function_class_name), {})
                 function_description = func_config.get("description", "")
                 function_component = Calibrator_Component_Function(function_class_name, function_description)
                 function_kernel = function_component.get_function()
@@ -119,7 +124,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
 
     # --- Define termination strategy for the group chat ---
     TERMINATION_KEYWORD = "TERMINATE"
-    termination_function_prompt = group_chat_info["termination_function_prompt"]
+    termination_function_prompt = sk_components.group_chat_info["termination_function_prompt"]
     termination_function = KernelFunctionFromPrompt(
         function_name="termination_function",
         prompt=termination_function_prompt
@@ -128,7 +133,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     termination_kernel = Kernel()
     termination_chat_completion_service = AzureChatCompletion(
         service_id="termination",
-        deployment_name=azure_openai_model,
+        deployment_name=sk_components.azure_openai_model,
         ad_token_provider=token_provider,
         async_client=azure_oai_client,
     )
@@ -145,7 +150,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     # --- End termination strategy definition ---
 
     # --- Define selection strategy for the group chat ---
-    selection_function_prompt = group_chat_info["selection_function_prompt"]
+    selection_function_prompt = sk_components.group_chat_info["selection_function_prompt"]
     selection_function = KernelFunctionFromPrompt(
         function_name="selection_function",
         prompt=selection_function_prompt
@@ -154,7 +159,7 @@ def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_li
     selection_kernel = Kernel()
     selection_chat_completion_service = AzureChatCompletion(
         service_id="selection",
-        deployment_name=azure_openai_model,
+        deployment_name=sk_components.azure_openai_model,
         ad_token_provider=token_provider,
         async_client=azure_oai_client,
     )

@@ -13,16 +13,18 @@ config = load_config("sample_sk_orchestrator_config.yaml")
 azure_openai_endpoint = config.get("azureopenai_endpoint")
 azure_openai_model = config.get("azureopenai_model")
 
-from sample2_component_list import agent_list, plugin_list, function_list, group_chat_info, agent_topology, azure_openai_endpoint, azure_openai_model
+from sample2_component_list import sk_component_abstraction, group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model
 
 # Load the multi-agent chat and convert it to JSON
 from sk_calibrator_object_loader import load_group_chat, decode_multi_agent, convert_multi_agent_to_json
 from sk_calibrator_component_assembler import AssembleAgentGroupChat
 
+sk_components = sk_component_abstraction(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model)
+
 # multi_chat = load_group_chat()
 multi_chat = AssembleAgentGroupChat(
-    group_chat_info, agent_list, plugin_list, function_list, agent_topology,
-    azure_openai_endpoint=azure_openai_endpoint, azure_openai_model="gpt-4o-mini-deploy"
+    sk_components
+    #azure_openai_endpoint=azure_openai_endpoint, azure_openai_model="gpt-4o-mini-deploy"
 )
 decode_multi_agent(multi_chat)
 multi_chat_json = convert_multi_agent_to_json(multi_chat)
@@ -41,47 +43,114 @@ socketio = SocketIO(app)
 
 def convert_ui_variant_to_sk_objects(ui_variant: dict) -> dict:
     """
-    Convert a UI variant selection into the sk_calibrator_objects format, 
-    focusing on reconstructing the agent_topology with exact function_class_name matches.
+    Convert a UI variant (tree coming from the front‑end) into a
+    ``sk_component_abstraction`` compatible dictionary.
     """
-    result = {}
-    # Initialize agent_topology with an empty plugin list
-    agent_topology = {"plugin_list": []}
-    
-    # Determine the list of plugin nodes in the UI variant (could be stored under 'children' or 'plugin_list')
-    plugins_ui = ui_variant.get("children") or ui_variant.get("plugin_list") or ui_variant.get("plugins") or []
-    
-    for plugin_node in plugins_ui:
-        # Plugin’s fully‑qualified class name comes directly from the UI node
-        plugin_class_name = plugin_node.get("fully_qualified_name", "")
-        
-        plugin_object = {
-            "plugin_class_name": plugin_class_name,
-            "function_list": []
+
+    # ------------------------------------------------------------------
+    # 1.  Skeleton – copy the static parts that never change
+    # ------------------------------------------------------------------
+    result = {
+        "group_chat_info":       group_chat_info,          # imported above
+        "agent_list":            [],
+        "plugin_list":           [],
+        "function_list":         [],
+        "agent_topology":        {"agents": []},
+        "azure_openai_endpoint": azure_openai_endpoint,
+        "azure_openai_model":    azure_openai_model,
+    }
+
+    # Sets used for de‑duplication
+    _seen_plugins:   set[str] = set()
+    _seen_functions: set[str] = set()
+
+    # ------------------------------------------------------------------
+    # 2.  Parse the UI tree
+    # ------------------------------------------------------------------
+    agents_ui = ui_variant.get("children", [])            # root node == "agents"
+    for agent_node in agents_ui:
+        # ---------------------- agent meta data -----------------------
+        agent_meta = {
+            "agent_name":        "",
+            "agent_description": "",
+            "agent_instruction": "",
+            "service_id":        ""
         }
-        
-        # Get function nodes under this plugin in the UI (could be under 'children' or 'function_list' keys)
-        function_nodes = plugin_node.get("children") or plugin_node.get("function_list") or plugin_node.get("functions") or []
-        for func_node in function_nodes:
-            ui_full_name = func_node.get("fully_qualified_name", "")
-            # Extract the function_name from UI's "PluginName-function_name"
-            if "-" in ui_full_name:
-                # Split into plugin part and function part (maxsplit=1 to handle only the first hyphen)
-                _, function_name = ui_full_name.split("-", 1)
-            else:
-                # If no hyphen, treat the whole name as the function name (perhaps already fully qualified in some cases)
-                function_name = ui_full_name
-            
-            # Directly derive fully‑qualified function class name from the UI entry.
-            # If the UI encodes it as "PluginName-function_name", convert the hyphen to a dot.
-            full_func_class = ui_full_name.replace("-", ".")
-            plugin_object["function_list"].append({"function_class_name": full_func_class})
-        
-        # Add the plugin object to the agent_topology's plugin list (even if its function_list is empty)
-        agent_topology["plugin_list"].append(plugin_object)
-    
-    # Even if plugins_ui is empty (no plugins selected), agent_topology with an empty plugin_list is retained
-    result["agent_topology"] = agent_topology
+        plugins_for_topology: list[dict] = []
+
+        for child in agent_node.get("children", []):
+            n = child.get("name", "")
+            if n.startswith("name:"):
+                agent_meta["agent_name"] = child.get("value", "")
+            elif n.startswith("description:"):
+                agent_meta["agent_description"] = child.get("value", "")
+            elif n.startswith("instructions"):
+                agent_meta["agent_instruction"] = child.get("value", "")
+            elif n.startswith("service_id"):
+                agent_meta["service_id"] = child.get("value", "")
+            elif n == "plugins":
+                # ---------------- plugin section ----------------------
+                for plugin_ui in child.get("children", []):
+                    plugin_name = ""
+                    functions_for_topology: list[dict] = []
+
+                    for p_child in plugin_ui.get("children", []):
+                        pn = p_child.get("name", "")
+                        if pn.startswith("name:"):
+                            plugin_name = p_child.get("value", "")
+                        elif pn == "functions":
+                            # ------------ functions -------------------
+                            for func_ui in p_child.get("children", []):
+                                fq_name = ""
+                                func_desc = ""
+
+                                for f_child in func_ui.get("children", []):
+                                    fn = f_child.get("name", "")
+                                    if fn.startswith("fully_qualified_name"):
+                                        fq_name = f_child.get("value", "")
+                                    elif fn.startswith("description"):
+                                        func_desc = f_child.get("value", "")
+
+                                # UI may omit fq_name; derive it if necessary
+                                if not fq_name:
+                                    local_name = func_ui.get("value", "")
+                                    fq_name = f"{plugin_name}-{local_name}"
+
+                                func_class = fq_name.replace("-", ".")
+                                functions_for_topology.append(
+                                    {"function_class_name": func_class}
+                                )
+
+                                if func_class not in _seen_functions:
+                                    result["function_list"].append(
+                                        {"function_class_name": func_class,
+                                         "description": func_desc}
+                                    )
+                                    _seen_functions.add(func_class)
+
+                    if plugin_name:
+                        # ---- add to topology ----
+                        plugins_for_topology.append(
+                            {"plugin_name": plugin_name,
+                             "functions": functions_for_topology}
+                        )
+
+                        # ---- global plugin list (dedup) ----
+                        plugin_class = f"sample2_components.{plugin_name}"
+                        if plugin_class not in _seen_plugins:
+                            result["plugin_list"].append(
+                                {"plugin_class_name": plugin_class,
+                                 "plugin_name": plugin_name}
+                            )
+                            _seen_plugins.add(plugin_class)
+
+        # ---------------------- finish agent --------------------------
+        result["agent_list"].append(agent_meta)
+        result["agent_topology"]["agents"].append(
+            {"agent_name": agent_meta["agent_name"],
+             "plugins": plugins_for_topology}
+        )
+
     return result
 
 
