@@ -66,3 +66,13 @@ agent_topology = {
         }
     ]
 }
+
+class sk_component_abstraction:
+    def __init__(self, group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint=None, azure_openai_model=None):
+        self.group_chat_info = group_chat_info
+        self.agent_list = agent_list
+        self.plugin_list = plugin_list
+        self.function_list = function_list
+        self.agent_topology = agent_topology
+        self.azure_openai_endpoint = azure_openai_endpoint
+        self.azure_openai_model = azure_openai_model
