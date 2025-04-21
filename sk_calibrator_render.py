@@ -171,24 +171,9 @@ def index():
 
 @app.route('/get_tree', methods=['GET'])
 def get_tree():
-    # Build the full file path relative to the current directory
-    # Convert the sk_component_abstraction to sk_calibrator_objects format on the fly. 
-    # The sk_calibrator_objects format is only to be used to communicate with the UI.  Not to use in the backend.
-
-    multi_chat_json = convert_multi_agent_to_json(multi_chat)
-    print(multi_chat_json)
-
-    #file_path = os.path.join(current_dir, 'sk_calibrator_objects.json')
-    #if not os.path.exists(file_path):
-    #    abort(404, description="JSON file not found")
-    #try:
-    #    with open(file_path, 'r') as f:
-    #        tree = json.load(f)
-    #except Exception as e:
-    #    abort(500, description=str(e))
-    #return jsonify(tree)
-    #return  #jsonify(multi_chat_json)
-    return  multi_chat_json
+    # Read directly from the sk calibrator objects (sk_component_abstraction object) json file format, so the server and client both use the same files. 
+    sk_components_json = sk_components.to_dict()
+    return sk_components_json
 
 @app.route('/save_variant', methods=['POST'])
 def save_variant():
