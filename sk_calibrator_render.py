@@ -17,7 +17,7 @@ azure_openai_model = config.get("azureopenai_model")
 from sample2_component_list import sk_component_abstraction, group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model
 
 # Load the multi-agent chat and convert it to JSON
-from sk_calibrator_object_loader import load_group_chat, decode_multi_agent, convert_multi_agent_to_json
+from sk_calibrator_object_loader import load_group_chat, decode_multi_agent 
 from sk_calibrator_component_assembler import AssembleAgentGroupChat
 
 sk_components = sk_component_abstraction(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model)
@@ -28,8 +28,6 @@ multi_chat = AssembleAgentGroupChat(
     #azure_openai_endpoint=azure_openai_endpoint, azure_openai_model="gpt-4o-mini-deploy"
 )
 decode_multi_agent(multi_chat)
-multi_chat_json = convert_multi_agent_to_json(multi_chat)
-print(multi_chat_json)
 
 # Get the directory of the current file
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -171,25 +169,25 @@ def index():
 
 @app.route('/get_tree', methods=['GET'])
 def get_tree():
-    # Read directly from the sk calibrator objects (sk_component_abstraction object) json file format, so the server and client both use the same files. 
-    sk_components_json = sk_components.to_dict()
-    return sk_components_json
+    """Return the canonical sk_component_abstraction JSON."""
+    return jsonify(sk_components.to_dict())                       # ← jsonify
 
 @app.route('/save_variant', methods=['POST'])
 def save_variant():
     data = request.get_json()
     if not data or 'modified_tree' not in data:
-        abort(400, description="Invalid data. Expecting 'changes'.")
-    variant = data["modified_tree"]
-    # Convert the variant to sk_calibrator_objects format on the fly, before save to sk_calibrator_experiment_1_variants.jsonl
-    ui_variant = data["modified_tree"]
-    sk_variant = convert_ui_variant_to_sk_objects(ui_variant)
+        abort(400, description="Invalid data – expecting 'modified_tree'.")
+
+    # UI already sends sk‑component‑style JSON ⇢ write as‑is
+    sk_variant = data["modified_tree"]
+
     variant_file = os.path.join(current_dir, 'sk_calibrator_experiment_1_variants.jsonl')
     try:
-        with open(variant_file, 'a') as f:
-            f.write(json.dumps(sk_variant) + "\n")
+        with open(variant_file, 'a', encoding='utf‑8') as f:
+            f.write(json.dumps(sk_variant, ensure_ascii=False) + "\n")
     except Exception as e:
         abort(500, description=str(e))
+
     return jsonify({"status": "success"})
 
 # ------------------------------------------------------------------

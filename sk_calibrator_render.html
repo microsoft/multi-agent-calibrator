@@ -144,7 +144,8 @@
 
     <!-- Main Script for tree rendering and modal handling -->
     <script>
-      let globalTree = null; // new global variable to hold the full tree object
+      let globalTree = null;           // radial‑tree structure
+      let skComponents = null;         // canonical sk_component_abstraction JSON
       let changes = [];
       let currentSelection = null;
       let currentData = null;
@@ -220,7 +221,8 @@
         .then(jsonData => {
           let dataForTree = (jsonData && jsonData.agents) ? jsonData.agents : jsonData;
           const treeData = jsonToTree("agents", dataForTree, "");
-          globalTree = treeData; // save the entire tree globally
+          globalTree  = treeData;   // radial structure (D3 needs it)
+          skComponents = jsonData;  // canonical object used for saving
 
           const width = 960, height = 800,
                 radius = Math.min(width, height) / 2 - 20;
@@ -334,6 +336,8 @@
         if (currentSelection && currentData) {
           const newValue = textarea.value;
           updateNodeText(currentSelection, newValue);
+          /* keep canonical object in‑sync */
+          onEdit(currentData.data.fullPath, newValue);
           let existing = changes.find(change => change.key === currentData.data.fullPath);
           if (existing) {
             existing.value = newValue;
@@ -361,29 +365,7 @@
         }
       };
 
-      // Updated "Save Changes" button handler to send the entire modified object.
-      document.getElementById("save-variants").addEventListener("click", function() {
-        if (!globalTree) {
-          alert("No data to save.");
-          return;
-        }
-        fetch("/save_variant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ modified_tree: globalTree })
-        })
-        .then(response => {
-          if (!response.ok) throw new Error("Failed to save variant");
-          return response.json();
-        })
-        .then(result => {
-          alert("Modified tree saved successfully!");
-        })
-        .catch(error => {
-          console.error("Error saving modified tree:", error);
-          alert("Error saving changes.");
-        });
-      });
+      /* save button handler is defined in the last script block */
 
       // Run experiment button handler.
       document.getElementById("run-experiment").addEventListener("click", function() {
@@ -538,6 +520,75 @@
         logEl.textContent = data.log;
         document.getElementById('logs').appendChild(logEl);
       });
+    </script>
+
+    <!-- Canonical JSON loading and rendering script -->
+    <script>
+      /* skComponents is declared in the first script and contains the
+         canonical JSON once the initial /get_tree fetch resolves. */
+
+      /* ───────── update helper (path → value) ───── */
+      function setByPath(obj, pathArr, newVal) {
+        if (pathArr.length === 1) {
+            obj[pathArr[0]] = newVal;
+            return;
+        }
+        // Create empty objects for missing segments in the path
+        if (obj[pathArr[0]] === undefined) {
+            obj[pathArr[0]] = {};
+        }
+        setByPath(obj[pathArr[0]], pathArr.slice(1), newVal);
+      }
+
+      /* whenever user edits a leaf node: */
+      function onEdit(fullPath, value) {
+        // Add console logging to debug the path handling
+        console.log("Editing path:", fullPath, "with value:", value);
+        
+        // fullPath examples: agents.agent_list[0].agent_description
+        // skComponents does not have a top-level "agents" key. Remove the prefix.
+        const pathWithoutRoot = fullPath.startsWith('agents.') ? fullPath.substring('agents.'.length) : fullPath;
+        console.log("Path without root:", pathWithoutRoot);
+
+        const path = pathWithoutRoot
+                      .replace(/\[(\d+)\]/g, '.$1')  // turn [i] into .i
+                      .split('.')
+                      .filter(Boolean); // filter(Boolean) removes empty strings
+        console.log("Processed path array:", path);
+
+        // Add a check for safety, although skComponents should be defined here
+        if (!skComponents) {
+            console.error("onEdit called before skComponents was loaded.");
+            return;
+        }
+        console.log("Current skComponents:", JSON.stringify(skComponents).substring(0, 100) + "...");
+        
+        try {
+            setByPath(skComponents, path, value);
+            console.log("Update successful. New skComponents:", JSON.stringify(skComponents).substring(0, 100) + "...");
+        } catch (e) {
+            console.error("Error in setByPath:", e);
+            console.error("Attempted path:", path, "on object:", skComponents, "original fullPath:", fullPath);
+        }
+      }
+
+      /* ───────────── SAVE VARIANT ──────────────── */
+      function saveVariant() {
+        console.log("Saving variant with skComponents:", JSON.stringify(skComponents).substring(0, 100) + "...");
+        fetch("/save_variant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ modified_tree: skComponents })
+        })
+        .then(r => r.json())
+        .then(() => alert("Variant saved!"))
+        .catch(error => {
+            console.error("Error saving variant:", error);
+            alert("Failed to save variant. See console for details.");
+        });
+      }
+
+      document.getElementById("save-variants").addEventListener("click", saveVariant);
     </script>
   </body>
 </html>
