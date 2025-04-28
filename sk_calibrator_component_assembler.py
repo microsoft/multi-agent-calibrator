@@ -29,85 +29,60 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 import asyncio
 
-def add_mcp_agent(agents: List[ChatCompletionAgent], azure_openai_model: str, azure_oai_client: Annotated[AsyncAzureOpenAI, "Async Azure OpenAI Client"], token_provider: Annotated[DefaultAzureCredential, "Azure AD Token Provider"]):
-    """Add an agent connected to a local MCP server, exposing its tools to the agent."""
-    # Configure the MCP server connection (launch local server via stdio)
-    server_params = StdioServerParameters(
-        command="python", 
-        args=["sample2_mcp_server.py"],  # adjust path or args as needed
-        env=None
-    )
-    # Asynchronous routine to start MCP session and list available tools
-    async def _connect_and_discover():
-        # Launch the MCP server and open stdio streams
-        read_stream, write_stream = await stdio_client(server_params).__aenter__()
-        session = ClientSession(read_stream, write_stream)
-        await session.initialize()                     # Establish MCP handshake
-        tools_response = await session.list_tools()    # Discover tools exposed by server
-        return session, tools_response.tools
+# Inside sk_calibrator_component_assembler.py
 
-    # Run the async connection routine and get the session and tools (one-time setup)
-    session, tools = asyncio.get_event_loop().run_until_complete(_connect_and_discover())
-    # (The session remains open for subsequent tool invocations)
+async def add_mcp_agent(agents: list, token_provider, azure_oai_client, agent_name: str = "MCPAgent"):
+    """
+    Asynchronously connect to an MCP server, discover tools, and attach them to a new ChatCompletionAgent.
+    The new agent is added to the agents list.
+    """
+    # Establish an asynchronous stdio connection to the MCP server
+    session = ClientSession(connection="stdio")  # assumes ClientSession is configured for MCP stdio
+    await session.connect()  # Await the async connection (no run_until_complete)
 
-    # Create a new Semantic Kernel for this agent and add an Azure OpenAI chat service
-    agent_kernel = Kernel()
-    mcp_service_id = "mcp_service"
-    mcp_chat_service = AzureChatCompletion(
-        service_id=mcp_service_id,
-        deployment_name=azure_openai_model,
-        ad_token_provider=token_provider,
-        async_client=azure_oai_client,
-    )
-    agent_kernel.add_service(mcp_chat_service)
-    # Enable automatic function selection (function calling) for this agent’s LLM
-    settings = agent_kernel.get_prompt_execution_settings_from_service_id(mcp_service_id)
-    settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
+    # Discover available MCP tools (list tools via MCP protocol)
+    tools = await session.list_tools()  # e.g., gets a list of tool metadata from MCP :contentReference[oaicite:5]{index=5}
 
-    # Dynamically create a plugin to hold MCP tool functions
-    MCPPlugin = type("MCPPlugin", (), {})
-    # Define initializer to store the MCP session
-    def _init(self, session):
-        self._session = session
-    MCPPlugin.__init__ = _init
-
-    # Convert each MCP tool into a Kernel Function and attach to the plugin
-    for tool in tools:
-        tool_name = tool.name
-        tool_desc = tool.description or ""
-        # Define an async function that calls the MCP tool via the session
-        async def _tool_func(self, **kwargs):
-            # Invoke the tool on the MCP session with provided arguments
-            result = await self._session.call_tool(tool_name, kwargs)
-            # Extract text content from the result (assuming text output)
-            if result and result.content:
-                # Return the text result to the agent
-                return result.content[0].text
-            return ""  # default empty string if no content returned
-
-        # Mark this function as a kernel function with appropriate metadata
-        decorated_func = kernel_function(name=tool_name, description=tool_desc)(_tool_func)
-        # Attach the function to the MCPPlugin class
-        setattr(MCPPlugin, tool_name, decorated_func)
-
-    # Instantiate the plugin and register it with the agent’s kernel&#8203;:contentReference[oaicite:1]{index=1}
-    mcp_plugin_instance = MCPPlugin(session)
-    agent_kernel.add_plugin(mcp_plugin_instance, plugin_name="MCP")
-
-    # Create the ChatCompletionAgent wired to use the MCP server’s tools
+    # Create a ChatCompletionAgent with Azure OpenAI setup
     mcp_agent = ChatCompletionAgent(
-        kernel=agent_kernel,
-        name="MCPAgent",
-        service_id=mcp_service_id,
-        description="Agent connected to local MCP server",
-        instructions="You are an agent with access to various tools via MCP."
+        name=agent_name,
+        system_message="You are an assistant equipped with external tools via MCP.",  # example system prompt
+        token_provider=token_provider,
+        azure_openai_client=azure_oai_client,
+        # (If ChatCompletionAgent supports function definitions, we will add them below)
     )
-    # Append the new agent to the agents list
+
+    # Dynamically create and attach tool functions to the agent
+    for tool in tools:
+        tool_name = tool.name if hasattr(tool, "name") else tool["name"]
+        tool_desc = tool.description if hasattr(tool, "description") else tool.get("description", "")
+        tool_params = None
+        if hasattr(tool, "inputSchema"):
+            tool_params = tool.inputSchema  # JSON schema for parameters :contentReference[oaicite:6]{index=6}
+        elif isinstance(tool, dict) and "inputSchema" in tool:
+            tool_params = tool["inputSchema"]
+        # Define an async function that calls this tool via the MCP session
+        async def tool_func(**kwargs):
+            """Invoke the MCP tool and return its result."""
+            return await session.call_tool(tool_name, **kwargs)  # calls MCP `tools/call` endpoint&#8203;:contentReference[oaicite:7]{index=7}
+
+        # Attach the function to the agent's tool registry (for use by the LLM)
+        mcp_agent.add_tool(
+            name=tool_name,
+            func=tool_func,
+            description=tool_desc,
+            parameters=tool_params
+        )
+        # Note: add_tool is a hypothetical helper to register the tool’s spec and function 
+        # so that the ChatCompletionAgent knows about it (name, description, params).
+
+    # Finally, add the new MCP-enabled agent to the agents list
     agents.append(mcp_agent)
+    # (The MCP session remains open for the agent to use its tools throughout the chat)
 
 
 #def AssembleAgentGroupChat(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint: str, azure_openai_model: str) -> AgentGroupChat:
-def AssembleAgentGroupChat(sk_components) -> AgentGroupChat:
+async def AssembleAgentGroupChat(sk_components) -> AgentGroupChat:
     """
     Assemble an AgentGroupChat by creating ChatCompletionAgents based on the agent_topology,
     attaching plugins loaded via the Calibrator_Component_Plugin, and dynamically adding functions
@@ -202,8 +177,8 @@ def AssembleAgentGroupChat(sk_components) -> AgentGroupChat:
             agent_kernel.add_plugin(plugin_instance, plugin_name=plugin_name)
 
     # Add a new weather agent to the group chat
-    add_mcp_agent(agents, sk_components.azure_openai_model, azure_oai_client, token_provider)
-
+    await add_mcp_agent(agents, token_provider, azure_oai_client, agent_name="MCPAgent")
+    
     # --- Define termination strategy for the group chat ---
     TERMINATION_KEYWORD = "TERMINATE"
     termination_function_prompt = sk_components.group_chat_info["termination_function_prompt"]
@@ -259,10 +234,17 @@ def AssembleAgentGroupChat(sk_components) -> AgentGroupChat:
     return agent_group_chat
 
 # Test
-from sample2_component_list import sk_component_abstraction, group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model
-from sk_calibrator_component_assembler import AssembleAgentGroupChat
-sk_components = sk_component_abstraction(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model)
-multi_chat = AssembleAgentGroupChat(
-    sk_components
-)
-print(multi_chat)
+if __name__ == "__main__":
+    import asyncio
+
+    async def main():
+        from sample2_component_list import sk_component_abstraction, group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model
+        from sk_calibrator_component_assembler import AssembleAgentGroupChat
+        sk_components = sk_component_abstraction(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model)
+
+        # Await the asynchronous group chat assembly to ensure it runs to completion
+        multi_chat = await AssembleAgentGroupChat(sk_components)
+        print(multi_chat)
+
+    # Run the async main function, which handles event loop setup and teardown
+    asyncio.run(main())
