@@ -24,7 +24,10 @@ This research breaks down the Multi-Agent RAG system into modifiable or re-assem
 - [ ] Support C# version Semantic Kernel
 - [ ] Support AG2
 - [ ] Create Multi-Agent project from scratch, and code generation
+- [ ] Create Multi-Agent project with AI via simple chat
 - [ ] Deploy on server
+- [ ] Auto Calibration
+- [ ] Gamify
 
 ![UI](res/calibrator_ui.png)
 
