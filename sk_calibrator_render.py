@@ -22,11 +22,12 @@ from sk_calibrator_component_assembler import AssembleAgentGroupChat
 
 sk_components = sk_component_abstraction(group_chat_info, agent_list, plugin_list, function_list, agent_topology, azure_openai_endpoint, azure_openai_model)
 
-# multi_chat = load_group_chat()
-multi_chat = AssembleAgentGroupChat(
-    sk_components
-    #azure_openai_endpoint=azure_openai_endpoint, azure_openai_model="gpt-4o-mini-deploy"
-)
+# this is now a coroutine, so we must run it:
+# multi_chat = AssembleAgentGroupChat(sk_components)
+
+# ↓ replace with
+
+multi_chat, mcp_plugin = asyncio.run(AssembleAgentGroupChat(sk_components))
 decode_multi_agent(multi_chat)
 
 # Get the directory of the current file

@@ -102,7 +102,9 @@ def decode_multi_agent(multi_chat: AgentGroupChat):
         print(f"--- Agent #{idx} ---")
         print("Name:        ", agent.name)
         print("Description: ", agent.description)
-        print("Service ID:  ", agent.service_id)
+        # guard missing service_id
+        print("Service ID:  ",
+              getattr(agent, "service_id", "<none>"))
         print("Instructions:")
         print(agent.instructions)
         print()
@@ -215,7 +217,8 @@ def convert_multi_agent_to_json(multi_chat: AgentGroupChat) -> str:
         agent_info = {
             "name": agent.name,
             "description": agent.description,
-            "service_id": agent.service_id,
+            # safely include service_id if present
+            "service_id": getattr(agent, "service_id", None),
             "instructions": agent.instructions,
             "plugins": []
         }
@@ -315,8 +318,7 @@ def read_variants_from_jsonl(file_path):
 from sk_calibrator_component_assembler import AssembleAgentGroupChat      # NEW
 from types import SimpleNamespace                                          # NEW
 
-async def evaluate_all_variants(multi_chat,socketio):
-
+async def evaluate_all_variants(multi_chat, socketio):
     # Read variants from a JSONL file
     variants = read_variants_from_jsonl('sk_calibrator_experiment_1_variants.jsonl')
     print("Variants: ", variants)
@@ -345,9 +347,8 @@ async def evaluate_all_variants(multi_chat,socketio):
             chat_history_input = convert_chat_history_to_sk_chat_history(question_01.chat_history)
             expected_answer = question_01.expected_answer
 
-            # Re‑create a clean AgentGroupChat per question to avoid
-            # cross‑pollinating history between test cases
-            multi_chat_variant = AssembleAgentGroupChat(sk_components)   # NEW
+            # Re‑create a clean AgentGroupChat per question
+            multi_chat_variant, mcp_plugin = await AssembleAgentGroupChat(sk_components)   # NEW
 
             delta = ["planner_agent"]
 
@@ -432,7 +433,7 @@ async def evaluate_all_variants(multi_chat,socketio):
 
 
 #################USE CASE######################
-
+'''
 if __name__ == "__main__":
     import asyncio
 
@@ -455,3 +456,4 @@ if __name__ == "__main__":
 
     # Synchronously run the async evaluate_all_variants function
     asyncio.run(evaluate_all_variants(multi_chat))
+'''

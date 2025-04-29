@@ -211,7 +211,7 @@ async def AssembleAgentGroupChat(sk_components) -> Tuple[AgentGroupChat, MCPStdi
             agent_kernel.add_plugin(plugin_instance, plugin_name=plugin_name)
 
         agents.append(chat_agent)
-        #agent_group_chat.add_agent(chat_agent)
+        agent_group_chat.add_agent(chat_agent)
 
     # ---------------------------------------------------------------------
     # Add MCP agent (weather) ---------------------------------------------
@@ -221,8 +221,8 @@ async def AssembleAgentGroupChat(sk_components) -> Tuple[AgentGroupChat, MCPStdi
         azure_oai_client,
         sk_components.azure_openai_model,
     )
-    #agents.append(mcp_agent)
-    agents = [mcp_agent]  # replace all agents with MCP agent
+    agents.append(mcp_agent)
+    #agents = [mcp_agent]  # replace all agents with MCP agent
     agent_group_chat.add_agent(mcp_agent)
 
     # ---------------------------------------------------------------------
@@ -323,4 +323,4 @@ if __name__ == "__main__":
         except RuntimeError:
             pass
 
-    asyncio.run(_main())
+    #asyncio.run(_main())
