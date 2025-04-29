@@ -19,7 +19,7 @@ group_chat_info = {
     """,
     "selection_function_prompt":"""You are the multi-agent coordinator. 
         Your task is to select exactly one agent for the next turn, based solely on the conversation history. 
-        Select any one agent from the list of agents available i.e., 'agent1'.
+        Select any one agent from the list of agents available i.e., 'weather_agent'.
         Rules:
         Output only the name of the selected agent. 
         Chat History: 

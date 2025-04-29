@@ -1,4 +1,4 @@
-semantic-kernel==1.17.1
+semantic-kernel==1.29.0
 Flask==3.1.0
 flask-socketio
 flask[async]
