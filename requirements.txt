@@ -1,6 +1,6 @@
 semantic-kernel==1.29.0
-Flask==3.1.0
 flask-socketio
 flask[async]
 mcp[cli] 
 httpx
+Flask==3.1.1
