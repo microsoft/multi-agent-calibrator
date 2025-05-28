@@ -102,7 +102,9 @@ def decode_multi_agent(multi_chat: AgentGroupChat):
         print(f"--- Agent #{idx} ---")
         print("Name:        ", agent.name)
         print("Description: ", agent.description)
-        print("Service ID:  ", agent.service_id)
+        # guard missing service_id
+        print("Service ID:  ",
+              getattr(agent, "service_id", "<none>"))
         print("Instructions:")
         print(agent.instructions)
         print()
@@ -215,7 +217,8 @@ def convert_multi_agent_to_json(multi_chat: AgentGroupChat) -> str:
         agent_info = {
             "name": agent.name,
             "description": agent.description,
-            "service_id": agent.service_id,
+            # safely include service_id if present
+            "service_id": getattr(agent, "service_id", None),
             "instructions": agent.instructions,
             "plugins": []
         }
@@ -312,9 +315,10 @@ def read_variants_from_jsonl(file_path):
     return variants
 
 
+from sk_calibrator_component_assembler import AssembleAgentGroupChat      # NEW
+from types import SimpleNamespace                                          # NEW
 
-async def evaluate_all_variants(multi_chat):
-
+async def evaluate_all_variants(multi_chat, socketio):
     # Read variants from a JSONL file
     variants = read_variants_from_jsonl('sk_calibrator_experiment_1_variants.jsonl')
     print("Variants: ", variants)
@@ -325,19 +329,16 @@ async def evaluate_all_variants(multi_chat):
     # Modify the multi_agent based on the variants
     for i, variant in enumerate(variants):
         print("Variant: ", variant)
+        socketio.emit('experiment_log', {'log': f"Evaluating variant {i+1}..."})
         score_total = 0.0
         score_count = 0
 
-        # Modify the multi_chat object with the variant
-        for modification in variant:
-            modification_key = modification.get("key")  # Extract the key
-            modification_value = modification.get("value")  # Extract the value
-            if not modification_key or modification_value is None:
-                continue  # Skip if key or value is missing
+        # Build a brand‑new multi‑agent chat object from the variant instead
+        # of patching the existing one.
+        sk_components = SimpleNamespace(**variant)            # deserialize → attribute object
+        # Each evaluation cycle will get a fresh AgentGroupChat
+        # assembled exactly as described by the variant payload.
 
-            modify_multi_agent(multi_chat, modification_key, modification_value)
-
-        # Then run all the test cases, with the modified multi_agent
         azureopenai_endpoint = config.get("azureopenai_endpoint")
         test_questions = read_testcases_from_jsonl('./sample_sk_orchestrator_testcases.jsonl') 
         # Test case
@@ -346,12 +347,15 @@ async def evaluate_all_variants(multi_chat):
             chat_history_input = convert_chat_history_to_sk_chat_history(question_01.chat_history)
             expected_answer = question_01.expected_answer
 
+            # Re‑create a clean AgentGroupChat per question
+            multi_chat_variant, mcp_plugin = await AssembleAgentGroupChat(sk_components)   # NEW
+
             delta = ["planner_agent"]
 
             if True:
                 question_2 = user_input 
                 responses = []
-                await multi_chat.add_chat_message(ChatMessageContent(role=AuthorRole.USER, content=question_2))
+                await multi_chat_variant.add_chat_message(ChatMessageContent(role=AuthorRole.USER, content=question_2))
 
                 TERMINATION_KEYWORD = "TERMINATE"  # Define your termination keyword
 
@@ -362,8 +366,9 @@ async def evaluate_all_variants(multi_chat):
 
                 try:
 
-                    async for response in multi_chat.invoke():
+                    async for response in multi_chat_variant.invoke():
                         print("\n-------------------------------------\n", response.name, "\n",  response.content, "\n\n\n")
+                        #socketio.emit('experiment_log', {'log': f"Multi-Agent {response.name}: {response.content}"})
                         last_response = response.content
 
                         # Append the response to the aggregated outputs.
@@ -374,8 +379,8 @@ async def evaluate_all_variants(multi_chat):
                             responses.append("*" * 50)
 
                         # Once the conversation ends, stop the loop
-                        print("Is the conversation complete: ", multi_chat.is_complete)
-                        if multi_chat.is_complete :
+                        print("Is the conversation complete: ", multi_chat_variant.is_complete)
+                        if multi_chat_variant.is_complete :
                             break
 
                         # Check for termination keyword
@@ -403,11 +408,10 @@ async def evaluate_all_variants(multi_chat):
 
                 # Ensure the score is between 0 and 1, and convert to float
                 score = float(score.strip())
+                socketio.emit('experiment_log', {'log': f"Score for variant {i+1}: {score} \n system_answer: {system_answer} \n expected_answer: {expected_answer}"})
                 score_total += score
                 score_count += 1
 
-            # TODO: Remove this debug code
-            #break
 
         print("score_total: ", score_total)
         print("score_count: ", score_count)
@@ -416,13 +420,12 @@ async def evaluate_all_variants(multi_chat):
 
         average_scores[i] = score_total / score_count
 
-        # TODO: Remove this debug code
-        #break
 
     # TODO: Now identify the best variant with highest score
     best_variant_key = max(average_scores, key=average_scores.get)
     best_variant_value = average_scores[best_variant_key]
     print(f"Best Variant: {best_variant_key} with score: {best_variant_value}")
+    socketio.emit('experiment_log', {'log': f"Best Variant: {best_variant_key} with score: {best_variant_value}"})
     return best_variant_key, best_variant_value
 
 
@@ -430,7 +433,7 @@ async def evaluate_all_variants(multi_chat):
 
 
 #################USE CASE######################
-
+'''
 if __name__ == "__main__":
     import asyncio
 
@@ -453,3 +456,4 @@ if __name__ == "__main__":
 
     # Synchronously run the async evaluate_all_variants function
     asyncio.run(evaluate_all_variants(multi_chat))
+'''

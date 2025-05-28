@@ -13,6 +13,24 @@ This research breaks down the Multi-Agent RAG system into modifiable or re-assem
 
 ![simplified-multi-agent-with-calibrator](./res/simplified-multi-agent-with-calibrator.png)
 
+# Features
+
+- [x] Abstract Semantic Kernel Component to be calibratorable
+- [x] Render Multi-Agent Topology with UI as a graph
+- [x] Generate variant by making changes on the UI, and save variant list
+- [x] Run experiment against test suite and identify the best variant
+- [x] Render experiment logs on UI to show the progress
+- [ ] Drag and drop Components to rebuild Multi-Agent topology
+- [ ] Support C# version Semantic Kernel
+- [ ] Support AG2
+- [ ] Create Multi-Agent project from scratch, and code generation
+- [ ] Create Multi-Agent project with AI via simple chat
+- [ ] Deploy on server
+- [ ] Auto Calibration
+- [ ] Gamify
+
+![UI](res/calibrator_ui.png)
+
 # Local Development Setup 
 
 python -m venv .venv
