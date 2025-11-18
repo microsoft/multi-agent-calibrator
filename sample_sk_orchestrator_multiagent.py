@@ -16,9 +16,11 @@ from semantic_kernel.agents.strategies.termination.kernel_function_termination_s
 from semantic_kernel.agents import ChatCompletionAgent, AgentGroupChat
 import asyncio
 from typing import Annotated
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import get_bearer_token_provider
 from openai import AsyncAzureOpenAI
 import time
+
+from azure_auth import get_azure_credential, get_azure_scope
 
 MODEL_GPT_4O_MINI = "gpt-4o-mini-deploy"
 MODEL_O1_MINI = "o1-mini-deploy"
@@ -46,8 +48,9 @@ class Scrum_Champ:
 def define_multi_agent(user_input: str, chat_history_input: ChatHistory, azureopenai_endpoint: str) -> AgentGroupChat:
 
     # Scrum Champ Agent
+    credential = get_azure_credential()
     token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        credential, get_azure_scope()
     )
     azure_oai_client = AsyncAzureOpenAI(
         api_version=azure_ai_api_version, 

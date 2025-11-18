@@ -36,6 +36,24 @@ This research breaks down the Multi-Agent RAG system into modifiable or re-assem
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 
+## Authentication
+
+Azure OpenAI access is authenticated via `DefaultAzureCredential`, centralized in `azure_auth.py`.
+
+- Set `AZURE_TOKEN_CREDENTIALS=dev` (or leave it unset) for local development so CLI / interactive credentials continue to work.
+- Set `AZURE_TOKEN_CREDENTIALS=prod` (or any non-`dev` value) in deployed environments; this enables `DefaultAzureCredential(require_envvar=True)` so only managed/workload identities are used.
+- All AOAI clients use the shared scope `https://cognitiveservices.azure.com/.default` and require `azure-identity>=1.25.1` (see `requirements.txt`).
+
+Example PowerShell configuration:
+
+```
+# Local dev
+$env:AZURE_TOKEN_CREDENTIALS = "dev"
+
+# Deployed service
+$env:AZURE_TOKEN_CREDENTIALS = "prod"
+```
+
 # Project
 
 > This repo has been populated by an initial template to help get you started. Please

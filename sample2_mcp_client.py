@@ -3,10 +3,12 @@ import sys
 import json
 import asyncio
 from contextlib import AsyncExitStack
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import get_bearer_token_provider
 from openai import AsyncAzureOpenAI
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+from azure_auth import get_azure_credential, get_azure_scope
 
 # Import the configuration loader
 from sk_calibrator_config import load_config
@@ -25,9 +27,10 @@ class MCPClient:
         self.azure_endpoint = azure_openai_endpoint
         self.azure_deployment = azure_openai_model
         # Create token provider for Azure AD authentication
+        credential = get_azure_credential()
         token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(),
-            "https://cognitiveservices.azure.com/.default"
+            credential,
+            get_azure_scope()
         )
         # Instantiate Async Azure OpenAI client with specified endpoint and deployment
         self.openai = AsyncAzureOpenAI(
