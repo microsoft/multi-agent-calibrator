@@ -18,8 +18,6 @@ from semantic_kernel.agents.strategies.termination.kernel_function_termination_s
 from semantic_kernel.agents import ChatCompletionAgent, AgentGroupChat
 import asyncio
 from typing import Annotated
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-from openai import AsyncAzureOpenAI
 import time
 import importlib
 

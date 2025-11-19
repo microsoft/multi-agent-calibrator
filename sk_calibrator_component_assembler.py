@@ -29,8 +29,10 @@ import time
 from contextlib import AsyncExitStack
 from typing import List, Tuple
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import get_bearer_token_provider
 from openai import AsyncAzureOpenAI
+
+from azure_auth import get_azure_credential, get_azure_scope
 
 from semantic_kernel.agents import AgentGroupChat, ChatCompletionAgent
 from semantic_kernel.agents.strategies.selection.kernel_function_selection_strategy import (
@@ -130,8 +132,9 @@ async def AssembleAgentGroupChat(sk_components) -> Tuple[AgentGroupChat, MCPStdi
     agent_group_chat = AgentGroupChat()
 
     # Shared Azure OpenAI client & token provider
+    credential = get_azure_credential()
     token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        credential, get_azure_scope()
     )
     azure_oai_client = AsyncAzureOpenAI(
         api_version="2025-01-01-preview",
