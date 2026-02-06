@@ -1,4 +1,4 @@
-semantic-kernel==1.29.0
+semantic-kernel==1.39.3
 flask-socketio
 flask[async]
 mcp[cli] 
