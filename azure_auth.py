@@ -1,30 +1,23 @@
 """Centralized Azure identity helpers for the calibrator tools."""
 
-import os
-from typing import Optional
-
 from azure.identity import DefaultAzureCredential, TokenCredential
 
 
-_DEV_SENTINEL = "dev"
 _SCOPE = "https://cognitiveservices.azure.com/.default"
 
 
-def get_azure_credential(env_var_name: str = "AZURE_TOKEN_CREDENTIALS") -> TokenCredential:
-    """Return a DefaultAzureCredential configured for dev or prod.
+def get_azure_credential() -> TokenCredential:
+    """Return a DefaultAzureCredential with require_envvar=True.
 
-    - AZURE_TOKEN_CREDENTIALS=dev (or unset) -> DefaultAzureCredential()
-    - Any other value -> DefaultAzureCredential(require_envvar=True)
+    The AZURE_TOKEN_CREDENTIALS environment variable controls which credential
+    is used at runtime:
+    - In Azure environments, set it to a deployed-service credential name
+      (e.g. ManagedIdentityCredential, WorkloadIdentityCredential).
+    - In local dev, set it to "dev" to exclude deployed-service credentials.
 
-    This allows local development to keep using CLI / interactive auth, while
-    production (or any non-dev setting) becomes deterministic and compliant
-    with security guidance requiring AZURE_TOKEN_CREDENTIALS to select the
-    deployed-service credential.
+    require_envvar=True ensures deterministic credential selection and avoids
+    probing development-time credentials in production.
     """
-
-    mode: Optional[str] = os.getenv(env_var_name)
-    if mode is None or mode.lower() == _DEV_SENTINEL:
-        return DefaultAzureCredential()
 
     return DefaultAzureCredential(require_envvar=True)
 
