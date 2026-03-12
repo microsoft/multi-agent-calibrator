@@ -1,25 +1,38 @@
 """Centralized Azure identity helpers for the calibrator tools."""
 
-from azure.identity import DefaultAzureCredential, TokenCredential
+import os
+
+from azure.identity import (
+    DefaultAzureCredential,
+    ManagedIdentityCredential,
+    TokenCredential,
+)
 
 
 _SCOPE = "https://cognitiveservices.azure.com/.default"
+_DEV_SENTINEL = "dev"
 
 
 def get_azure_credential() -> TokenCredential:
-    """Return a DefaultAzureCredential with require_envvar=True.
+    """Return an Azure credential based on the current environment.
 
     The AZURE_TOKEN_CREDENTIALS environment variable controls which credential
     is used at runtime:
-    - In Azure environments, set it to a deployed-service credential name
-      (e.g. ManagedIdentityCredential, WorkloadIdentityCredential).
-    - In local dev, set it to "dev" to exclude deployed-service credentials.
-
-    require_envvar=True ensures deterministic credential selection and avoids
-    probing development-time credentials in production.
+    - Set to "dev" for local development (uses DefaultAzureCredential).
+    - Set to any other value (or leave unset) in Azure environments to use
+      ManagedIdentityCredential directly — no credential probing.
     """
 
-    return DefaultAzureCredential(require_envvar=True)
+    mode = (os.getenv("AZURE_TOKEN_CREDENTIALS") or "").lower()
+
+    if mode == _DEV_SENTINEL:
+        return DefaultAzureCredential(
+            require_envvar=True,
+            exclude_cli_credential=True,
+            exclude_powershell_credential=True,
+        )
+
+    return ManagedIdentityCredential()
 
 
 def get_azure_scope() -> str:
