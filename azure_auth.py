@@ -18,7 +18,9 @@ def get_azure_credential() -> TokenCredential:
 
     The AZURE_TOKEN_CREDENTIALS environment variable controls which credential
     is used at runtime:
-    - Set to "dev" for local development (uses DefaultAzureCredential).
+    - Set to "dev" for local development (uses DefaultAzureCredential with
+      its full credential chain, including Azure CLI, Azure PowerShell,
+      environment variables, and interactive browser).
     - Set to any other value (or leave unset) in Azure environments to use
       ManagedIdentityCredential directly — no credential probing.
     """
@@ -26,11 +28,7 @@ def get_azure_credential() -> TokenCredential:
     mode = (os.getenv("AZURE_TOKEN_CREDENTIALS") or "").lower()
 
     if mode == _DEV_SENTINEL:
-        return DefaultAzureCredential(
-            require_envvar=True,
-            exclude_cli_credential=True,
-            exclude_powershell_credential=True,
-        )
+        return DefaultAzureCredential()
 
     return ManagedIdentityCredential()
 
